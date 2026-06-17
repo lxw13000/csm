@@ -1,0 +1,66 @@
+# ===================================================================
+# CSM · 测试 / 预发环境配置（仅覆盖与基础配置 application.yml 不同的项）
+# -------------------------------------------------------------------
+# 激活方式：SPRING_PROFILES_ACTIVE=test
+# 定位：独立于本地与生产的联调 / QA 环境；保留 SQL 日志便于排查问题。
+#       连接信息支持环境变量覆盖，默认值指向测试集群占位地址。
+# ===================================================================
+
+server:
+  tomcat:
+    threads:
+      max: 200
+      min-spare: 20
+    accept-count: 500
+    max-connections: 10000
+
+spring:
+  # ---------- 测试数据源（HikariCP）----------
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: ${CSM_DB_URL:jdbc:mysql://test-mysql:3306/csm?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true}
+    username: ${CSM_DB_USER:csm}
+    password: ${CSM_DB_PASSWORD:csm123456}
+    hikari:
+      pool-name: CsmHikariPool
+      minimum-idle: 5
+      maximum-pool-size: 30
+      idle-timeout: 600000
+      max-lifetime: 1700000
+      connection-timeout: 30000
+      connection-test-query: SELECT 1
+
+  # ---------- 测试 Redis（用独立 db 索引与生产/本地隔离）----------
+  data:
+    redis:
+      host: ${CSM_REDIS_HOST:test-redis}
+      port: ${CSM_REDIS_PORT:6379}
+      password: ${CSM_REDIS_PASSWORD:}
+      database: ${CSM_REDIS_DB:1}   # 与生产(0)、本地(0)隔离，避免键冲突
+      timeout: 3000ms
+      lettuce:
+        pool:
+          max-active: 64
+          max-idle: 16
+          min-idle: 4
+          max-wait: 2000ms
+
+# ---------- 测试环境保留 SQL 日志，便于联调排查 ----------
+mybatis-plus:
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+# ---------- 测试业务参数 ----------
+csm:
+  jwt:
+    secret: ${CSM_JWT_SECRET:csm-test-jwt-secret-please-change-0123456789abcdef}
+  init:
+    default-password: ${CSM_INIT_PASSWORD:admin123}
+
+# ---------- 日志：使用独立的 logback-spring-test.xml ----------
+# 文件输出目录可用环境变量 CSM_LOG_DIR 覆盖（默认相对路径 logs/）。
+logging:
+  config: classpath:logback-spring-test.xml
+  level:
+    root: info
+    com.tsd.csm: debug             # 测试环境保持 debug，方便定位问题

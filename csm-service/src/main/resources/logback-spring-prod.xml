@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ============================================================================
+  CSM · 生产环境 Logback 配置
+  · 由 application-prod.yml 的 logging.config 指定加载（文件名非 logback-spring.xml，
+    不会被 Spring Boot 自动加载，必须显式指定）。
+  · 文件名带 "-spring" 后缀 + 通过 logging.config 加载 => 支持 <springProperty> 扩展。
+  · 输出三路：控制台(供容器/K8s 采集 stdout) + 全量滚动文件 + 独立错误文件。
+  · 具体日志级别最终以 application-prod.yml 的 logging.level.* 为准
+    （Spring Boot 加载本文件后会再应用 yml 中的级别）。
+  ============================================================================
+-->
+<configuration>
+
+    <!-- 从 Spring 环境读取应用名；日志目录支持环境变量 CSM_LOG_DIR 覆盖 -->
+    <springProperty scope="context" name="APP_NAME" source="spring.application.name" defaultValue="csm-service"/>
+    <property name="LOG_DIR" value="${CSM_LOG_DIR:-/var/log/csm}"/>
+
+    <!-- 统一日志格式：时间 [线程] 级别 logger - 消息 -->
+    <property name="LOG_PATTERN"
+              value="%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"/>
+
+    <!-- ===================== 控制台（容器标准输出，便于日志采集）===================== -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>${LOG_PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <!-- ===================== 全量滚动文件（INFO 及以上）===================== -->
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_DIR}/${APP_NAME}.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <!-- 按天切分 + 单文件超限再按序号 %i 切分，历史文件 gzip 压缩 -->
+            <fileNamePattern>${LOG_DIR}/${APP_NAME}.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <maxFileSize>100MB</maxFileSize>       <!-- 单个文件上限 -->
+            <maxHistory>30</maxHistory>            <!-- 保留 30 天 -->
+            <totalSizeCap>10GB</totalSizeCap>      <!-- 历史日志总量上限，超出删除最旧 -->
+        </rollingPolicy>
+        <encoder>
+            <pattern>${LOG_PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <!-- ===================== 错误日志单独文件（仅 ERROR，方便告警/排障）===================== -->
+    <appender name="ERROR_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_DIR}/${APP_NAME}-error.log</file>
+        <filter class="ch.qos.logback.classic.filter.LevelFilter">
+            <level>ERROR</level>
+            <onMatch>ACCEPT</onMatch>
+            <onMismatch>DENY</onMismatch>
+        </filter>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_DIR}/${APP_NAME}-error.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <maxFileSize>100MB</maxFileSize>
+            <maxHistory>30</maxHistory>
+            <totalSizeCap>5GB</totalSizeCap>
+        </rollingPolicy>
+        <encoder>
+            <pattern>${LOG_PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <!-- ===================== 异步包装（降低磁盘 I/O 对业务线程的阻塞）===================== -->
+    <appender name="ASYNC_FILE" class="ch.qos.logback.classic.AsyncAppender">
+        <appender-ref ref="FILE"/>
+        <queueSize>1024</queueSize>                <!-- 异步队列容量 -->
+        <discardingThreshold>0</discardingThreshold>   <!-- 0 = 队列满也不丢弃任何级别的日志 -->
+        <neverBlock>false</neverBlock>             <!-- 队列满时阻塞业务线程，保证日志不丢 -->
+    </appender>
+    <appender name="ASYNC_ERROR_FILE" class="ch.qos.logback.classic.AsyncAppender">
+        <appender-ref ref="ERROR_FILE"/>
+        <queueSize>512</queueSize>
+        <discardingThreshold>0</discardingThreshold>
+    </appender>
+
+    <!-- ===================== 根日志：生产基线 INFO（最终以 yml 的 logging.level 为准）===================== -->
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="ASYNC_FILE"/>
+        <appender-ref ref="ASYNC_ERROR_FILE"/>
+    </root>
+
+</configuration>

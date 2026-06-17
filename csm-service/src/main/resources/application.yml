@@ -1,0 +1,120 @@
+# ===================================================================
+# CSM 独立客服工单系统 · 基础配置（所有环境共享 + 本地开发默认值）
+# -------------------------------------------------------------------
+# 说明：
+#   1. 本文件为「公共 + dev 默认」配置；test / prod 仅在对应 profile 文件中
+#      覆盖差异项（数据库、Redis、线程、日志等），不重复公共内容。
+#   2. 通过环境变量 SPRING_PROFILES_ACTIVE 切换环境：dev（默认）/ test / prod。
+#   3. 凡密码、密钥等敏感信息，生产环境务必用环境变量覆盖，切勿明文上线。
+# ===================================================================
+
+server:
+  port: 8080                       # 服务监听端口
+  servlet:
+    context-path: /                # 应用根路径
+  shutdown: graceful               # 优雅停机：先拒绝新请求，再处理存量请求
+  tomcat:                          # 注：项目使用 spring-boot-starter-web 默认的 Tomcat 容器
+    threads:
+      max: 200                     # 最大工作线程（开发够用；生产在 prod 中上调）
+      min-spare: 20                # 最小空闲线程
+    accept-count: 200              # 满负荷时的等待队列长度
+    max-connections: 8192          # 最大并发连接数
+
+spring:
+  application:
+    name: csm-service              # 应用名（日志 / 监控 / 链路标识）
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}   # 激活环境，默认 dev，可由环境变量覆盖
+  lifecycle:
+    timeout-per-shutdown-phase: 30s         # 优雅停机最长等待时间
+
+  # ---------- 数据源（本地开发：单库 + HikariCP，Spring Boot 默认连接池）----------
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://127.0.0.1:3306/csm?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: root
+    password: csm123456
+    hikari:
+      pool-name: CsmHikariPool
+      minimum-idle: 5              # 最小空闲连接
+      maximum-pool-size: 20        # 最大连接数（开发环境）
+      idle-timeout: 600000         # 空闲连接回收时间（10min）
+      max-lifetime: 1800000        # 连接最大存活（30min，建议略小于 MySQL wait_timeout）
+      connection-timeout: 30000    # 获取连接超时（30s）
+      connection-test-query: SELECT 1
+
+  # ---------- Redis（会话凭证 / WS 在线状态 / 跨节点消息广播）----------
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 6379
+      database: 0
+      timeout: 3000ms             # 命令执行超时
+      lettuce:
+        pool:
+          max-active: 16          # 连接池最大连接数
+          max-idle: 8             # 最大空闲连接
+          min-idle: 2             # 最小空闲连接
+          max-wait: 2000ms        # 取连接最大等待（负值表示不限制）
+
+  # ---------- Jackson 序列化 ----------
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: Asia/Shanghai
+    default-property-inclusion: non_null   # null 字段不参与序列化
+
+  # ---------- 文件上传（工单消息含图片 / 附件，按需调整上限）----------
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 20MB         # 单文件上限
+      max-request-size: 20MB      # 单次请求总上限
+
+# ===================== MyBatis-Plus =====================
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/**/*.xml       # XML 映射文件位置
+  type-aliases-package: com.tsd.csm.modules            # 实体别名扫描包
+  configuration:
+    map-underscore-to-camel-case: true                 # 下划线 -> 驼峰
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl   # 开发期打印 SQL（生产关闭）
+  global-config:
+    banner: false                                      # 关闭 MyBatis-Plus 启动 banner
+    db-config:
+      id-type: auto                                    # 主键策略：数据库自增
+      table-underline: true                            # 表名下划线命名
+
+# ===================== CSM 业务自定义配置（绑定 CsmProperties，前缀 csm.*）=====================
+csm:
+  jwt:
+    # 登录态签名密钥；HS256 要求长度 >= 32 字节。生产务必用环境变量 CSM_JWT_SECRET 覆盖！
+    secret: ${CSM_JWT_SECRET:csm-default-jwt-secret-please-change-in-production-0123456789}
+    expire-minutes: 720           # 登录态有效期（分钟）= 12h
+  session:
+    expire-minutes: 120           # H5 访客会话凭证有效期（分钟）= 2h
+  init:
+    default-password: ${CSM_INIT_PASSWORD:admin123}    # 内置演示账号初始化密码
+
+# ===================== 日志 =====================
+logging:
+  level:
+    root: info
+    com.tsd.csm: debug            # 业务包开发期开 debug（生产降为 info）
+
+# ===================== 监控（可选，默认关闭）=====================
+# 如需 Prometheus 指标，请先在 pom.xml 添加以下依赖后取消注释：
+#   - org.springframework.boot:spring-boot-starter-actuator
+#   - io.micrometer:micrometer-registry-prometheus
+#management:
+#  endpoints:
+#    web:
+#      exposure:
+#        include: health,info,prometheus
+#  endpoint:
+#    health:
+#      show-details: never        # 健康检查不泄露明细（生产建议）
+#  metrics:
+#    tags:
+#      application: csm-service    # 指标统一打上应用名标签
+#    distribution:
+#      percentiles-histogram:
+#        http.server.requests: true   # 开启接口 P95/P99 直方图

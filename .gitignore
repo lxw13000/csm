@@ -39,3 +39,4 @@ logs/
 !.claude/
 !.claude/skills/
 !.claude/skills/*
+/.claude/

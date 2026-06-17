@@ -1,0 +1,44 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: csm-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: csm123456
+      MYSQL_DATABASE: csm
+      TZ: Asia/Shanghai
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+      - --default-time-zone=+08:00
+    ports:
+      - "3306:3306"
+    volumes:
+      - csm-mysql-data:/var/lib/mysql
+      # 首次启动自动按文件名顺序执行初始化脚本（01 建表，02 初始化数据）
+      - ./csm-service/src/main/resources/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./csm-service/src/main/resources/db/data.sql:/docker-entrypoint-initdb.d/02-data.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-pcsm123456"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: csm-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - csm-redis-data:/data
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  csm-mysql-data:
+  csm-redis-data:

@@ -1,0 +1,70 @@
+# ===================================================================
+# CSM · 生产环境配置（仅覆盖与基础配置 application.yml 不同的项）
+# -------------------------------------------------------------------
+# 激活方式：SPRING_PROFILES_ACTIVE=prod
+# 安全约定：数据库 / Redis 的地址、账号、密码、JWT 密钥一律通过环境变量注入，
+#          严禁明文写入代码仓库。下方 ${VAR:默认值} 中的默认值仅为占位示例。
+# ===================================================================
+
+server:
+  tomcat:
+    threads:
+      max: 400                     # 生产高并发：按 8C 机型给到 400（200~600 区间）
+      min-spare: 50
+    accept-count: 1000             # 等待队列
+    max-connections: 20000         # 最大连接数
+    connection-timeout: 5s
+
+spring:
+  # ---------- 生产数据源（HikariCP；连接信息走环境变量）----------
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: ${CSM_DB_URL:jdbc:mysql://prod-mysql:3306/csm?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=true&allowPublicKeyRetrieval=true&autoReconnect=true&rewriteBatchedStatements=true}
+    username: ${CSM_DB_USER:csm}
+    password: ${CSM_DB_PASSWORD:}
+    hikari:
+      pool-name: CsmHikariPool
+      minimum-idle: 10
+      maximum-pool-size: 100       # 生产连接数（依据 DB 最大连接与机型调整）
+      idle-timeout: 600000
+      max-lifetime: 1700000        # 略小于 DB/中间件的连接最大空闲时间
+      connection-timeout: 30000
+      keepalive-time: 30000        # 主动保活，规避空闲连接被网关/防火墙断开
+      connection-test-query: SELECT 1
+
+  # ---------- 生产 Redis（开启 TLS；连接信息走环境变量）----------
+  data:
+    redis:
+      host: ${CSM_REDIS_HOST:prod-redis}
+      port: ${CSM_REDIS_PORT:6379}
+      username: ${CSM_REDIS_USER:}
+      password: ${CSM_REDIS_PASSWORD:}
+      database: 0
+      ssl:
+        enabled: ${CSM_REDIS_SSL:true}    # 云托管 Redis（如 AWS ElastiCache）通常需开启 TLS
+      timeout: 3000ms
+      lettuce:
+        pool:
+          max-active: 400
+          max-idle: 64
+          min-idle: 16
+          max-wait: 200ms
+
+# ---------- 生产关闭 SQL 日志（提升性能 + 避免敏感数据落盘）----------
+mybatis-plus:
+  configuration:
+    log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl
+
+# ---------- 生产业务参数 ----------
+csm:
+  jwt:
+    # 生产必须由环境变量提供且 >= 32 字节；留空将导致 JWT 初始化失败（即“强制配置”信号）
+    secret: ${CSM_JWT_SECRET:}
+
+# ---------- 日志：使用独立的 logback-spring-prod.xml（控制台 + 滚动文件 + 错误文件）----------
+# 文件输出目录可用环境变量 CSM_LOG_DIR 覆盖（默认 /var/log/csm）。
+logging:
+  config: classpath:logback-spring-prod.xml
+  level:
+    root: info
+    com.tsd.csm: info              # 覆盖基础配置的 debug；生产业务包仅 info
