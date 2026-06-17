@@ -9,6 +9,7 @@ export default defineConfig({
     alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) }
   },
   server: {
+    host: '0.0.0.0',  // 允许所有 IP 访问
     port: 5174,
     proxy: {
       '/api': { target: 'http://localhost:8081', changeOrigin: true },
