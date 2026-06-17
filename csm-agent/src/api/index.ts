@@ -27,6 +27,9 @@ export const acceptTicket = (id: number) => post<TicketVO>(`/agent/ticket/${id}/
 export const transferTargets = () => get<AccountBrief[]>('/agent/ticket/transfer-targets')
 export const ticketMessages = (id: number, afterSeq?: number) =>
   get<MessageVO[]>(`/agent/ticket/${id}/messages`, afterSeq != null ? { afterSeq } : undefined)
+/** 历史消息分页：取 beforeSeq 之前的最近 limit 条（beforeSeq 为空取最新 limit 条）。 */
+export const ticketMessagesBefore = (id: number, beforeSeq?: number, limit = 20) =>
+  get<MessageVO[]>(`/agent/ticket/${id}/messages`, beforeSeq != null ? { beforeSeq, limit } : { limit })
 export const reply = (id: number, dto: SendMessageDTO) => post<MessageVO>(`/agent/ticket/${id}/reply`, dto)
 export const transfer = (id: number, dto: TransferDTO) => post<unknown>(`/agent/ticket/${id}/transfer`, dto)
 export const closeTicket = (id: number) => post<unknown>(`/agent/ticket/${id}/close`)

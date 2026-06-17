@@ -80,13 +80,23 @@ public class AgentTicketController {
     /**
      * 工单聊天记录。
      * @param id 工单 id
-     * @param afterSeq 增量游标，可空
+     * @param afterSeq 增量游标（取其后的消息），可空
+     * @param beforeSeq 向上翻页游标（取其前的更早历史），可空
+     * @param limit 返回条数上限（配合 beforeSeq 分页加载），可空
      * @return 消息列表
      */
     @GetMapping("/{id}/messages")
     public R<List<MessageVO>> messages(@PathVariable Long id,
-                                       @RequestParam(required = false) Long afterSeq) {
-        return R.ok(ticketService.messages(id, afterSeq));
+                                       @RequestParam(required = false) Long afterSeq,
+                                       @RequestParam(required = false) Long beforeSeq,
+                                       @RequestParam(required = false) Integer limit) {
+        if (afterSeq != null) {
+            return R.ok(ticketService.messages(id, afterSeq));
+        }
+        if (beforeSeq != null || limit != null) {
+            return R.ok(ticketService.messagesBefore(id, beforeSeq, limit));
+        }
+        return R.ok(ticketService.messages(id, null));
     }
 
     /**

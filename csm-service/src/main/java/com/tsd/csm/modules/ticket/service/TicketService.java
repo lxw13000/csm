@@ -279,6 +279,19 @@ public class TicketService extends ServiceImpl<TicketMapper, Ticket> {
     }
 
     /**
+     * 工单最近 limit 条消息（初次加载取最新、向上滚动加载更早历史）。
+     * @param ticketId 工单 id
+     * @param beforeSeq 向上翻页游标：仅取 seq 小于它的消息，null 表示取最新
+     * @param limit 返回条数上限，null 默认 10
+     * @return 按 seq 升序的消息 VO 列表
+     */
+    public List<MessageVO> messagesBefore(Long ticketId, Long beforeSeq, Integer limit) {
+        getOwned(ticketId);
+        int size = (limit == null || limit <= 0) ? 10 : limit;
+        return messageService.historyBefore(ticketId, beforeSeq, size).stream().map(messageService::toVO).toList();
+    }
+
+    /**
      * 管理端分页查询本租户工单。
      * @param query 查询条件
      * @return 工单分页结果

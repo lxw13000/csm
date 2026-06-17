@@ -19,6 +19,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -94,25 +96,64 @@ public class MessageService extends ServiceImpl<MessageMapper, Message> {
                 .list();
     }
 
-    /** 已读高水位推进：每个 (工单, 阅读方) 仅一行，仅在更大序号时更新。 */
+    /**
+     * 拉取工单最近 limit 条消息（用于初次加载与向上滚动加载历史）。
+     * @param ticketId 工单 id
+     * @param beforeSeq 仅取 seq 小于它的消息（向上翻页游标），null 表示取最新
+     * @param limit 返回条数上限（1~100）
+     * @return 按 seq 升序排列的消息列表
+     */
+    public List<Message> historyBefore(Long ticketId, Long beforeSeq, int limit) {
+        int size = Math.max(1, Math.min(limit, 100));
+        List<Message> desc = lambdaQuery()
+                .eq(Message::getTicketId, ticketId)
+                .lt(beforeSeq != null, Message::getSeq, beforeSeq)
+                .orderByDesc(Message::getSeq)
+                .last("limit " + size)
+                .list();
+        List<Message> ordered = new ArrayList<>(desc);
+        Collections.reverse(ordered);
+        return ordered;
+    }
+
+    /**
+     * 已读高水位推进：每个 (工单, 阅读方) 仅一行，仅在更大序号时更新。
+     * 并发首次上报可能同时插入，捕获唯一键冲突后转为推进高水位（幂等）。
+     */
     public void markRead(Long ticketId, int readerType, String readerId, long seq) {
-        MessageRead record = messageReadMapper.selectOne(new LambdaQueryWrapper<MessageRead>()
+        MessageRead record = findRead(ticketId, readerType, readerId);
+        if (record != null) {
+            bumpWatermark(record, seq);
+            return;
+        }
+        MessageRead created = new MessageRead();
+        created.setTicketId(ticketId);
+        created.setReaderType(readerType);
+        created.setReaderId(readerId);
+        created.setLastReadSeq(seq);
+        created.setLastReadAt(LocalDateTime.now());
+        try {
+            messageReadMapper.insert(created);
+        } catch (DuplicateKeyException e) {
+            // 并发已插入同一 (工单,阅读方)：回查后推进高水位
+            bumpWatermark(findRead(ticketId, readerType, readerId), seq);
+        }
+    }
+
+    private MessageRead findRead(Long ticketId, int readerType, String readerId) {
+        return messageReadMapper.selectOne(new LambdaQueryWrapper<MessageRead>()
                 .eq(MessageRead::getTicketId, ticketId)
                 .eq(MessageRead::getReaderType, readerType)
                 .eq(MessageRead::getReaderId, readerId));
-        if (record == null) {
-            record = new MessageRead();
-            record.setTicketId(ticketId);
-            record.setReaderType(readerType);
-            record.setReaderId(readerId);
-            record.setLastReadSeq(seq);
-            record.setLastReadAt(LocalDateTime.now());
-            messageReadMapper.insert(record);
-        } else if (seq > record.getLastReadSeq()) {
-            record.setLastReadSeq(seq);
-            record.setLastReadAt(LocalDateTime.now());
-            messageReadMapper.updateById(record);
+    }
+
+    private void bumpWatermark(MessageRead record, long seq) {
+        if (record == null || (record.getLastReadSeq() != null && seq <= record.getLastReadSeq())) {
+            return;
         }
+        record.setLastReadSeq(seq);
+        record.setLastReadAt(LocalDateTime.now());
+        messageReadMapper.updateById(record);
     }
 
     /** 某阅读方在某工单的未读数 = 对端发送且 seq 大于已读水位的消息数。 */

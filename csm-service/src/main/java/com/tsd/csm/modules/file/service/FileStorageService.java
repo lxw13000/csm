@@ -29,7 +29,7 @@ import java.util.UUID;
 public class FileStorageService {
 
     private static final Logger log = LoggerFactory.getLogger(FileStorageService.class);
-    private static final DateTimeFormatter MONTH = DateTimeFormatter.ofPattern("yyyyMM");
+    private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("yyyyMMdd");
 
     private final Path baseDir;
 
@@ -66,10 +66,10 @@ public class FileStorageService {
         }
         String safeApp = (appId == null || appId.isBlank())
                 ? "common" : appId.replaceAll("[^A-Za-z0-9_-]", "_");
-        String month = LocalDate.now().format(MONTH);
+        String strDay = LocalDate.now().format(DAY);
         String storedName = UUID.randomUUID().toString().replace("-", "") + ext;
 
-        Path dir = baseDir.resolve(safeApp).resolve(month);
+        Path dir = baseDir.resolve(safeApp).resolve(strDay);
         Path target = dir.resolve(storedName);
         try {
             Files.createDirectories(dir);
@@ -80,7 +80,7 @@ public class FileStorageService {
         }
 
         UploadVO vo = new UploadVO();
-        vo.setUrl("/files/" + safeApp + "/" + month + "/" + storedName);
+        vo.setUrl("/files/" + safeApp + "/" + strDay + "/" + storedName);
         vo.setName(original);
         vo.setSize(file.getSize());
         return vo;

@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router'
 import { showImagePreview, showSuccessToast, showToast } from 'vant'
 import * as api from '@/api'
 import { useSessionStore } from '@/stores/session'
-import { initRealtime, onWs, wsSend } from '@/utils/realtime'
+import { initRealtime, onWs, wsOpen, wsSend } from '@/utils/realtime'
 import { beep, unlockAudio } from '@/utils/notify'
 import { contentTypeOfFile, fileNameOf, isVideoUrl } from '@/utils/media'
 import { TOKEN_KEY } from '@/api/request'
@@ -20,6 +20,10 @@ const sending = ref(false)
 const uploading = ref(false)
 const peerTyping = ref(false)
 const peerReadSeq = ref(0)
+const PAGE = 10
+const earliestSeq = ref<number | null>(null)
+const loadingMore = ref(false)
+const noMore = ref(false)
 const listRef = ref<HTMLElement>()
 const imageInput = ref<HTMLInputElement>()
 const fileInput = ref<HTMLInputElement>()
@@ -60,13 +64,47 @@ async function loadAll() {
   try {
     ticket.value = await api.currentTicket()
     if (ticket.value) {
-      messages.value = await api.messages(ticket.value.id)
+      // 默认加载最近 PAGE(10) 条历史
+      const list = await api.messagesBefore(ticket.value.id, undefined, PAGE)
+      messages.value = list
+      noMore.value = list.length < PAGE
+      earliestSeq.value = list.length ? list[0].seq : null
       scrollToBottom()
       reportRead()
     }
   } catch {
     /* ignore */
   }
+}
+
+/** 向上滚动加载更早历史（保持滚动位置）。 */
+async function loadMore() {
+  if (!ticket.value || loadingMore.value || noMore.value || earliestSeq.value == null) return
+  loadingMore.value = true
+  const el = listRef.value
+  const prevH = el ? el.scrollHeight : 0
+  try {
+    const older = await api.messagesBefore(ticket.value.id, earliestSeq.value, PAGE)
+    if (older.length < PAGE) noMore.value = true
+    const seen = new Set(messages.value.map((m) => m.seq))
+    const fresh = older.filter((m) => !seen.has(m.seq))
+    if (fresh.length) {
+      messages.value = [...fresh, ...messages.value]
+      earliestSeq.value = fresh[0].seq
+      nextTick(() => {
+        if (el) el.scrollTop = el.scrollHeight - prevH
+      })
+    }
+  } catch {
+    /* ignore */
+  } finally {
+    loadingMore.value = false
+  }
+}
+
+function onScroll() {
+  const el = listRef.value
+  if (el && el.scrollTop < 40) loadMore()
 }
 
 function maxRealSeq(): number {
@@ -124,8 +162,12 @@ function showPeerTyping() {
 function reportRead() {
   const seq = maxRealSeq()
   if (seq <= 0 || !ticket.value) return
-  wsSend({ type: 'read', ticketId: ticket.value.id, seq })
-  api.markRead(ticket.value.id, seq).catch(() => undefined)
+  // 单通道上报，避免「WS read + REST markRead」并发首次插入造成唯一键冲突
+  if (wsOpen()) {
+    wsSend({ type: 'read', ticketId: ticket.value.id, seq })
+  } else {
+    api.markRead(ticket.value.id, seq).catch(() => undefined)
+  }
 }
 
 function onInput() {
@@ -250,7 +292,8 @@ function readTag(m: MessageVO): boolean {
   <div class="chat">
     <van-nav-bar :title="statusText" />
 
-    <div ref="listRef" class="messages">
+    <div ref="listRef" class="messages" @scroll="onScroll">
+      <div v-if="loadingMore" class="more">加载中…</div>
       <div v-for="m in messages" :key="m._clientMsgId || m.seq" class="row" :class="senderClass(m)">
         <div class="bubble" :class="{ media: m.contentType !== 1 }">
           <template v-if="m.contentType === 2">
@@ -306,6 +349,7 @@ function readTag(m: MessageVO): boolean {
 <style scoped>
 .chat { display: flex; flex-direction: column; height: 100vh; }
 .messages { flex: 1; overflow-y: auto; padding: 12px; }
+.more { text-align: center; color: #969799; font-size: 12px; padding: 6px 0; }
 .row { display: flex; flex-direction: column; margin-bottom: 12px; }
 .row .bubble { max-width: 74%; padding: 8px 12px; border-radius: 10px; word-break: break-word; }
 .row .bubble.media { padding: 4px; background: transparent !important; }

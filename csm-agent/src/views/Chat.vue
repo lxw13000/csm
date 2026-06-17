@@ -20,6 +20,10 @@ const sending = ref(false)
 const uploading = ref(false)
 const peerTyping = ref(false)
 const peerReadSeq = ref(0)
+const PAGE = 20
+const earliestSeq = ref<number | null>(null)
+const loadingMore = ref(false)
+const noMore = ref(false)
 const closed = computed(() => ticket.value?.status === 4)
 const listRef = ref<HTMLElement>()
 const imageInput = ref<HTMLInputElement>()
@@ -47,12 +51,46 @@ async function loadAll() {
   try {
     // 点开工单 = 接入人工（转接中 -> 处理中）
     ticket.value = await api.acceptTicket(ticketId)
-    messages.value = await api.ticketMessages(ticketId)
+    // 默认加载最近 PAGE 条，向上滚动加载更早历史
+    const list = await api.ticketMessagesBefore(ticketId, undefined, PAGE)
+    messages.value = list
+    noMore.value = list.length < PAGE
+    earliestSeq.value = list.length ? list[0].seq : null
     scrollToBottom()
     reportRead()
   } catch {
     /* ignore */
   }
+}
+
+/** 向上滚动加载更早历史（保持滚动位置）。 */
+async function loadMore() {
+  if (loadingMore.value || noMore.value || earliestSeq.value == null) return
+  loadingMore.value = true
+  const el = listRef.value
+  const prevH = el ? el.scrollHeight : 0
+  try {
+    const older = await api.ticketMessagesBefore(ticketId, earliestSeq.value, PAGE)
+    if (older.length < PAGE) noMore.value = true
+    const seen = new Set(messages.value.map((m) => m.seq))
+    const fresh = older.filter((m) => !seen.has(m.seq))
+    if (fresh.length) {
+      messages.value = [...fresh, ...messages.value]
+      earliestSeq.value = fresh[0].seq
+      nextTick(() => {
+        if (el) el.scrollTop = el.scrollHeight - prevH
+      })
+    }
+  } catch {
+    /* ignore */
+  } finally {
+    loadingMore.value = false
+  }
+}
+
+function onScroll() {
+  const el = listRef.value
+  if (el && el.scrollTop < 40) loadMore()
 }
 
 function maxRealSeq(): number {
@@ -113,8 +151,9 @@ function showPeerTyping() {
 function reportRead() {
   const seq = maxRealSeq()
   if (seq <= 0) return
-  wsSend({ type: 'read', ticketId, seq })
-  api.markRead(ticketId, seq).catch(() => undefined)
+  // 单通道上报，避免「WS read + REST markRead」并发首次插入造成唯一键冲突
+  if (wsOpen()) wsSend({ type: 'read', ticketId, seq })
+  else api.markRead(ticketId, seq).catch(() => undefined)
 }
 
 function onInput() {
@@ -259,7 +298,8 @@ function senderClass(m: MessageVO): string {
       </template>
     </van-nav-bar>
 
-    <div ref="listRef" class="messages">
+    <div ref="listRef" class="messages" @scroll="onScroll">
+      <div v-if="loadingMore" class="more">加载中…</div>
       <div v-for="m in messages" :key="m._clientMsgId || m.seq" class="row" :class="senderClass(m)">
         <div class="bubble" :class="{ media: m.contentType !== 1 }">
           <template v-if="m.contentType === 2">
@@ -313,6 +353,7 @@ function senderClass(m: MessageVO): string {
 .act { color: #fff; margin-left: 12px; }
 .act.danger { color: #ffe1e1; }
 .messages { flex: 1; overflow-y: auto; padding: 12px; background: #f7f8fa; }
+.more { text-align: center; color: #969799; font-size: 12px; padding: 6px 0; }
 .row { display: flex; flex-direction: column; margin-bottom: 12px; }
 .row .bubble { max-width: 72%; padding: 8px 12px; border-radius: 10px; word-break: break-word; }
 .row .bubble.media { padding: 4px; background: transparent !important; }

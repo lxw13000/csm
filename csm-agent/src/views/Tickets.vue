@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from 'vue'
+import { onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { showConfirmDialog, showFailToast, showSuccessToast } from 'vant'
 import * as api from '@/api'
@@ -7,7 +7,7 @@ import { useAuthStore } from '@/stores/auth'
 import { initRealtime, onWs } from '@/utils/realtime'
 import { notifyNew, requestNotifyPermission, stopTitleFlash } from '@/utils/notify'
 import { TOKEN_KEY } from '@/api/request'
-import type { TicketVO, WsInbound } from '@/types/api'
+import type { AccountBrief, TicketVO, WsInbound } from '@/types/api'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -15,6 +15,8 @@ const tickets = ref<TicketVO[]>([])
 const online = ref(false)
 const load = ref(0)
 const loading = ref(false)
+const sheet = reactive({ show: false, actions: [] as { name: string; agentId: number }[] })
+let transferTicketId = 0
 let unsub: (() => void) | null = null
 
 onMounted(async () => {
@@ -85,6 +87,39 @@ function openChat(t: TicketVO) {
   router.push(`/chat/${t.id}`)
 }
 
+/** 从列表直接转交工单给其他客服。 */
+async function openTransfer(t: TicketVO) {
+  transferTicketId = t.id
+  try {
+    const targets = await api.transferTargets()
+    sheet.actions = targets
+      .filter((a: AccountBrief) => a.id !== t.agentId)
+      .map((a) => ({ name: (a.realName || a.username) + ' (#' + a.id + ')', agentId: a.id }))
+    if (!sheet.actions.length) {
+      showFailToast('暂无其他可转交客服')
+      return
+    }
+    sheet.show = true
+  } catch {
+    /* ignore */
+  }
+}
+
+async function onPickAgent(action: { name: string; agentId: number }) {
+  try {
+    await showConfirmDialog({ title: '转交工单', message: `确认将工单 #${transferTicketId} 转交给 ${action.name}？` })
+  } catch {
+    return // 用户取消
+  }
+  try {
+    await api.transfer(transferTicketId, { toAgentId: action.agentId })
+    showSuccessToast('已转交')
+    loadList()
+  } catch {
+    /* ignore */
+  }
+}
+
 async function onLogout() {
   await showConfirmDialog({ title: '提示', message: '确认退出登录？' })
   try {
@@ -118,7 +153,7 @@ async function onLogout() {
     <van-pull-refresh v-model="loading" @refresh="loadList">
       <div class="list">
         <van-empty v-if="!tickets.length" description="暂无待处理的工单" />
-        <van-cell v-for="t in tickets" :key="t.id" is-link center @click="openChat(t)">
+        <van-cell v-for="t in tickets" :key="t.id" center @click="openChat(t)">
           <template #icon>
             <van-image round width="42" height="42" :src="t.avatar" class="avatar">
               <template #error><div class="ph">{{ (t.nickname || t.userId || '?').charAt(0) }}</div></template>
@@ -130,9 +165,15 @@ async function onLogout() {
             <van-badge v-if="t.unreadCount" :content="t.unreadCount" class="badge" />
           </template>
           <template #label>工单 #{{ t.id }} · {{ t.lastMsgAt || t.createdAt || '' }}</template>
+          <template #value>
+            <van-button size="mini" type="primary" plain @click.stop="openTransfer(t)">转交</van-button>
+          </template>
         </van-cell>
       </div>
     </van-pull-refresh>
+
+    <van-action-sheet v-model:show="sheet.show" :actions="sheet.actions" cancel-text="取消"
+      title="转交给" @select="onPickAgent" />
   </div>
 </template>
 
