@@ -18,8 +18,8 @@ spring:
   # ---------- 测试数据源（HikariCP）----------
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: ${CSM_DB_URL:jdbc:mysql://test-mysql:3306/csm?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true}
-    username: ${CSM_DB_USER:csm}
+    url: ${CSM_DB_URL:jdbc:mysql://127.0.0.1:3306/csm?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true}
+    username: ${CSM_DB_USER:root}
     password: ${CSM_DB_PASSWORD:csm123456}
     hikari:
       pool-name: CsmHikariPool
@@ -33,7 +33,7 @@ spring:
   # ---------- 测试 Redis（用独立 db 索引与生产/本地隔离）----------
   data:
     redis:
-      host: ${CSM_REDIS_HOST:test-redis}
+      host: ${CSM_REDIS_HOST:127.0.0.1}
       port: ${CSM_REDIS_PORT:6379}
       password: ${CSM_REDIS_PASSWORD:}
       database: ${CSM_REDIS_DB:1}   # 与生产(0)、本地(0)隔离，避免键冲突
