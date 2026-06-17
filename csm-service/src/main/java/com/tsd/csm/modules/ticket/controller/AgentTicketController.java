@@ -5,6 +5,8 @@ import com.tsd.csm.core.common.enums.ReaderType;
 import com.tsd.csm.core.common.result.R;
 import com.tsd.csm.core.security.LoginUser;
 import com.tsd.csm.core.security.UserContext;
+import com.tsd.csm.modules.account.domain.vo.AccountVO;
+import com.tsd.csm.modules.account.service.AccountService;
 import com.tsd.csm.modules.ticket.domain.Ticket;
 import com.tsd.csm.modules.ticket.domain.dto.SendMessageDTO;
 import com.tsd.csm.modules.ticket.domain.dto.TransferDTO;
@@ -30,9 +32,11 @@ import java.util.List;
 public class AgentTicketController {
 
     private final TicketService ticketService;
+    private final AccountService accountService;
 
-    public AgentTicketController(TicketService ticketService) {
+    public AgentTicketController(TicketService ticketService, AccountService accountService) {
         this.ticketService = ticketService;
+        this.accountService = accountService;
     }
 
     /**
@@ -52,6 +56,25 @@ public class AgentTicketController {
     @GetMapping("/{id}")
     public R<TicketVO> detail(@PathVariable Long id) {
         return R.ok(ticketService.detailForAgent(id, currentAgentId()));
+    }
+
+    /**
+     * 客服点开工单 = 接入人工：将分配给我的「人工转接中」工单转为「处理中」。
+     * @param id 工单 id
+     * @return 接入后的工单详情
+     */
+    @PostMapping("/{id}/accept")
+    public R<TicketVO> accept(@PathVariable Long id) {
+        return R.ok(ticketService.acceptTicket(id, currentAgentId()));
+    }
+
+    /**
+     * 可转接的本租户客服列表（转接选择用）。
+     * @return 客服账号列表
+     */
+    @GetMapping("/transfer-targets")
+    public R<List<AccountVO>> transferTargets() {
+        return R.ok(accountService.listAgents());
     }
 
     /**

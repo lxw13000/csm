@@ -40,3 +40,6 @@ logs/
 !.claude/skills/
 !.claude/skills/*
 /.claude/
+
+# 运行时上传文件
+uploads/

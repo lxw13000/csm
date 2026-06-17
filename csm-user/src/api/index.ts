@@ -1,6 +1,6 @@
 import request from './request'
 import type {
-  AccessDTO, AccessVO, EvaluateDTO, MessageVO, SendMessageDTO, TicketVO, UserMessageResultVO
+  AccessDTO, AccessVO, EvaluateDTO, MessageVO, SendMessageDTO, TicketVO, UploadVO, UserMessageResultVO
 } from '@/types/api'
 
 function get<T>(url: string, params?: Record<string, unknown>): Promise<T> {
@@ -24,3 +24,10 @@ export const unresolved = () => post<TicketVO>('/h5/unresolved')
 export const evaluate = (dto: EvaluateDTO) => post<void>('/h5/evaluate', dto)
 export const markRead = (ticketId: number, seq: number) =>
   post<void>('/h5/ticket/read', null, { ticketId, seq })
+
+/** 上传文件，返回可访问地址（用于发送图片/视频/其他多媒体消息）。 */
+export const upload = (file: File): Promise<UploadVO> => {
+  const fd = new FormData()
+  fd.append('file', file)
+  return request.post('/file/upload', fd) as unknown as Promise<UploadVO>
+}

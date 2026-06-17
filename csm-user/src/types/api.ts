@@ -77,6 +77,13 @@ export interface EvaluateDTO {
   remark?: string
 }
 
+/** 文件上传结果。 */
+export interface UploadVO {
+  url: string
+  name: string
+  size: number
+}
+
 export interface WsInbound {
   type: string
   ticketId?: number

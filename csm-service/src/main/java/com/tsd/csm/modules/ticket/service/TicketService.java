@@ -95,7 +95,9 @@ public class TicketService extends ServiceImpl<TicketMapper, Ticket> {
         result.setMessage(messageService.toVO(userMessage));
 
         int status = ticket.getStatus();
-        if (status == TicketStatus.PROCESSING.getCode() && ticket.getAgentId() != null) {
+        if (ticket.getAgentId() != null
+                && (status == TicketStatus.PROCESSING.getCode() || status == TicketStatus.TRANSFERRING.getCode())) {
+            // 已分配客服（处理中，或已分配待接入）：实时推送给该客服
             notifier.toAgent(ticket.getAppId(), ticket.getAgentId(),
                     WsChannelType.CHAT.getType(), messageService.toVO(userMessage));
         } else if (status == TicketStatus.QA.getCode()) {
@@ -291,11 +293,11 @@ public class TicketService extends ServiceImpl<TicketMapper, Ticket> {
         return PageResult.of(page, ticket -> toVO(ticket, false, 0, null));
     }
 
-    /** 客服「我的」会话：处理中工单，带未读数。 */
+    /** 客服「待我处理」会话：分配给我且未完结的工单（含待接入与处理中），带未读数。 */
     public List<TicketVO> listForAgent(Long agentId) {
         List<Ticket> tickets = lambdaQuery()
                 .eq(Ticket::getAgentId, agentId)
-                .eq(Ticket::getStatus, TicketStatus.PROCESSING.getCode())
+                .ne(Ticket::getStatus, TicketStatus.CLOSED.getCode())
                 .orderByDesc(Ticket::getLastMsgAt)
                 .list();
         return tickets.stream()
@@ -312,6 +314,28 @@ public class TicketService extends ServiceImpl<TicketMapper, Ticket> {
     public TicketVO detailForAgent(Long ticketId, Long agentId) {
         Ticket ticket = getOwned(ticketId);
         return toVO(ticket, true, ReaderType.AGENT.getCode(), String.valueOf(agentId));
+    }
+
+    /**
+     * 客服点开工单：将分配给该客服且处于「人工转接中」的工单转为「处理中」，即真正「接入人工」
+     * （派单仅代表归属，点开才代表介入，xuqiu.md 4.2）。会通知用户「人工已接入」。
+     * @param ticketId 工单 id
+     * @param agentId 客服账号 id
+     * @return 接入后的工单详情
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public TicketVO acceptTicket(Long ticketId, Long agentId) {
+        Ticket ticket = getOwned(ticketId);
+        if (agentId != null && agentId.equals(ticket.getAgentId())
+                && ticket.getStatus() == TicketStatus.TRANSFERRING.getCode()) {
+            ticket.setStatus(TicketStatus.PROCESSING.getCode());
+            if (ticket.getAssignedAt() == null) {
+                ticket.setAssignedAt(LocalDateTime.now());
+            }
+            updateById(ticket);
+            notifyTicketStatus(ticket, agentId);
+        }
+        return detailForAgent(ticketId, agentId);
     }
 
     /**

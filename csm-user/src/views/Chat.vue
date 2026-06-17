@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { showSuccessToast, showToast } from 'vant'
+import { showImagePreview, showSuccessToast, showToast } from 'vant'
 import * as api from '@/api'
 import { useSessionStore } from '@/stores/session'
 import { initRealtime, onWs, wsSend } from '@/utils/realtime'
 import { beep, unlockAudio } from '@/utils/notify'
+import { contentTypeOfFile, fileNameOf, isVideoUrl } from '@/utils/media'
 import { TOKEN_KEY } from '@/api/request'
 import type { MessageVO, TicketVO, WsInbound } from '@/types/api'
 
@@ -16,9 +17,12 @@ const ticket = ref<TicketVO>()
 const messages = ref<MessageVO[]>([])
 const input = ref('')
 const sending = ref(false)
+const uploading = ref(false)
 const peerTyping = ref(false)
 const peerReadSeq = ref(0)
 const listRef = ref<HTMLElement>()
+const imageInput = ref<HTMLInputElement>()
+const fileInput = ref<HTMLInputElement>()
 let unsub: (() => void) | null = null
 let tempSeq = -1
 let typingTimer: number | undefined
@@ -128,21 +132,25 @@ function onInput() {
   if (ticket.value) wsSend({ type: 'typing', ticketId: ticket.value.id })
 }
 
-async function send() {
+function sendText() {
   const content = input.value.trim()
   if (!content) return
+  input.value = ''
+  sendContent(content, 1)
+}
+
+async function sendContent(content: string, contentType: number) {
   unlockAudio()
   const clientMsgId = 'u-' + Date.now() + '-' + Math.floor(performance.now())
   const optimistic: MessageVO = {
-    id: 0, ticketId: ticket.value?.id ?? 0, seq: tempSeq--, senderType: 1, contentType: 1, content,
+    id: 0, ticketId: ticket.value?.id ?? 0, seq: tempSeq--, senderType: 1, contentType, content,
     createdAt: new Date().toLocaleString(), _pending: true, _clientMsgId: clientMsgId
   }
   messages.value.push(optimistic)
-  input.value = ''
   scrollToBottom()
   sending.value = true
   try {
-    const result = await api.sendMessage({ content, contentType: 1, clientMsgId })
+    const result = await api.sendMessage({ content, contentType, clientMsgId })
     ticket.value = result.ticket
     const i = messages.value.findIndex((x) => x._clientMsgId === clientMsgId)
     if (i >= 0) messages.value[i] = result.message
@@ -158,6 +166,30 @@ async function send() {
   } finally {
     sending.value = false
   }
+}
+
+async function onFileChosen(e: Event) {
+  const el = e.target as HTMLInputElement
+  const file = el.files?.[0]
+  el.value = ''
+  if (!file) return
+  uploading.value = true
+  try {
+    const res = await api.upload(file)
+    sendContent(res.url, contentTypeOfFile(file))
+  } catch {
+    showToast('上传失败')
+  } finally {
+    uploading.value = false
+  }
+}
+
+function previewImage(url: string) {
+  showImagePreview([url])
+}
+
+function openFile(url: string) {
+  window.open(url, '_blank')
 }
 
 async function onRequestHuman() {
@@ -220,8 +252,19 @@ function readTag(m: MessageVO): boolean {
 
     <div ref="listRef" class="messages">
       <div v-for="m in messages" :key="m._clientMsgId || m.seq" class="row" :class="senderClass(m)">
-        <div class="bubble">
-          <van-image v-if="m.contentType === 2" :src="m.content" width="160" />
+        <div class="bubble" :class="{ media: m.contentType !== 1 }">
+          <template v-if="m.contentType === 2">
+            <van-image :src="m.content" width="160" fit="cover" radius="6" @click="previewImage(m.content)" />
+          </template>
+          <template v-else-if="m.contentType === 3 && isVideoUrl(m.content)">
+            <video :src="m.content" controls preload="metadata" class="video" />
+          </template>
+          <template v-else-if="m.contentType === 3">
+            <div class="file" @click="openFile(m.content)">
+              <van-icon name="description" size="20" />
+              <span class="fname">{{ fileNameOf(m.content) }}</span>
+            </div>
+          </template>
           <span v-else>{{ m.content }}</span>
         </div>
         <div class="sub">
@@ -243,8 +286,12 @@ function readTag(m: MessageVO): boolean {
     </div>
 
     <div class="input-bar">
-      <van-field v-model="input" placeholder="输入消息…" @update:model-value="onInput" @keyup.enter="send" />
-      <van-button type="primary" size="small" :loading="sending" @click="send">发送</van-button>
+      <van-icon name="photograph" size="24" class="attach" @click="imageInput?.click()" />
+      <van-icon name="add-o" size="24" class="attach" @click="fileInput?.click()" />
+      <van-field v-model="input" placeholder="输入消息…" @update:model-value="onInput" @keyup.enter="sendText" />
+      <van-button type="primary" size="small" :loading="sending || uploading" @click="sendText">发送</van-button>
+      <input ref="imageInput" type="file" accept="image/*" hidden @change="onFileChosen" />
+      <input ref="fileInput" type="file" accept="video/*,*/*" hidden @change="onFileChosen" />
     </div>
 
     <van-dialog v-model:show="evalDialog.show" title="服务评价" show-cancel-button @confirm="submitEvaluate">
@@ -261,6 +308,7 @@ function readTag(m: MessageVO): boolean {
 .messages { flex: 1; overflow-y: auto; padding: 12px; }
 .row { display: flex; flex-direction: column; margin-bottom: 12px; }
 .row .bubble { max-width: 74%; padding: 8px 12px; border-radius: 10px; word-break: break-word; }
+.row .bubble.media { padding: 4px; background: transparent !important; }
 .row .sub { font-size: 11px; color: #969799; margin-top: 2px; }
 .row.agent, .row.bot { align-items: flex-start; }
 .row.agent .bubble { background: #fff; }
@@ -269,8 +317,12 @@ function readTag(m: MessageVO): boolean {
 .row.mine .bubble { background: #1989fa; color: #fff; }
 .row.mine .sub { text-align: right; }
 .bubble.typing { background: #fff; color: #969799; font-size: 13px; }
+.video { max-width: 220px; border-radius: 6px; }
+.file { display: flex; align-items: center; gap: 6px; background: #fff; color: #323233; padding: 8px 12px; border-radius: 8px; }
+.file .fname { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .toolbar { display: flex; gap: 8px; padding: 6px 12px; background: #f7f8fa; }
-.input-bar { display: flex; align-items: center; gap: 8px; padding: 8px; background: #fff; border-top: 1px solid #ebedf0; }
+.input-bar { display: flex; align-items: center; gap: 6px; padding: 8px; background: #fff; border-top: 1px solid #ebedf0; }
+.input-bar .attach { color: #646566; }
 .input-bar .van-field { flex: 1; }
 .input-bar .van-button { margin-right: 4px; }
 .eval { padding: 16px; text-align: center; }

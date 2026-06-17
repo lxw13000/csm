@@ -14,6 +14,8 @@ public class CsmProperties {
     private final Session session = new Session();
     /** 初始化数据配置（csm.init.*）。 */
     private final Init init = new Init();
+    /** 文件上传配置（csm.upload.*）。 */
+    private final Upload upload = new Upload();
 
     public Jwt getJwt() {
         return jwt;
@@ -25,6 +27,10 @@ public class CsmProperties {
 
     public Init getInit() {
         return init;
+    }
+
+    public Upload getUpload() {
+        return upload;
     }
 
     /** JWT 登录态配置。 */
@@ -76,6 +82,20 @@ public class CsmProperties {
 
         public void setDefaultPassword(String defaultPassword) {
             this.defaultPassword = defaultPassword;
+        }
+    }
+
+    /** 文件上传配置。 */
+    public static class Upload {
+        /** 上传文件存储根目录（默认相对路径 uploads，对外经 /files/** 访问）。 */
+        private String dir = "uploads";
+
+        public String getDir() {
+            return dir;
+        }
+
+        public void setDir(String dir) {
+            this.dir = dir;
         }
     }
 }

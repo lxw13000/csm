@@ -1,5 +1,5 @@
 import request from './request'
-import type { AgentStatus, LoginDTO, LoginVO, MessageVO, SendMessageDTO, TicketVO, TransferDTO } from '@/types/api'
+import type { AccountBrief, AgentStatus, LoginDTO, LoginVO, MessageVO, SendMessageDTO, TicketVO, TransferDTO, UploadVO } from '@/types/api'
 
 function get<T>(url: string, params?: Record<string, unknown>): Promise<T> {
   return request.get(url, { params }) as unknown as Promise<T>
@@ -21,9 +21,20 @@ export const getStatus = () => get<AgentStatus>('/agent/status')
 /* 工单与会话 */
 export const ticketList = () => get<TicketVO[]>('/agent/ticket/list')
 export const ticketDetail = (id: number) => get<TicketVO>(`/agent/ticket/${id}`)
+/** 客服点开工单 = 接入人工（转接中 -> 处理中）。 */
+export const acceptTicket = (id: number) => post<TicketVO>(`/agent/ticket/${id}/accept`)
+/** 可转接的本租户客服列表。 */
+export const transferTargets = () => get<AccountBrief[]>('/agent/ticket/transfer-targets')
 export const ticketMessages = (id: number, afterSeq?: number) =>
   get<MessageVO[]>(`/agent/ticket/${id}/messages`, afterSeq != null ? { afterSeq } : undefined)
 export const reply = (id: number, dto: SendMessageDTO) => post<MessageVO>(`/agent/ticket/${id}/reply`, dto)
 export const transfer = (id: number, dto: TransferDTO) => post<unknown>(`/agent/ticket/${id}/transfer`, dto)
 export const closeTicket = (id: number) => post<unknown>(`/agent/ticket/${id}/close`)
 export const markRead = (id: number, seq: number) => post<void>(`/agent/ticket/${id}/read`, null, { seq })
+
+/** 上传文件，返回可访问地址（用于发送图片/视频/其他多媒体消息）。 */
+export const upload = (file: File): Promise<UploadVO> => {
+  const fd = new FormData()
+  fd.append('file', file)
+  return request.post('/file/upload', fd) as unknown as Promise<UploadVO>
+}

@@ -72,6 +72,22 @@ export interface TransferDTO {
   reason?: string
 }
 
+/** 可转接客服（来自 /agent/ticket/transfer-targets）。 */
+export interface AccountBrief {
+  id: number
+  username: string
+  realName?: string
+  accountType?: number
+  status?: number
+}
+
+/** 文件上传结果。 */
+export interface UploadVO {
+  url: string
+  name: string
+  size: number
+}
+
 /** WebSocket 下行消息（服务端推送统一为 { type, data }，直发的 ack/pong 含顶层字段）。 */
 export interface WsInbound {
   type: string

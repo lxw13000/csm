@@ -59,10 +59,11 @@ public class DispatchService {
         return redisLock.executeLocked(lockKey, LOCK_TTL_MILLIS, LOCK_WAIT_MILLIS, () -> doDispatch(appId, ticketId));
     }
 
-    /** 容量释放或客服上线后，按创建时间顺序重派本租户队列中的工单，直到无容量。 */
+    /** 容量释放或客服上线后，按创建时间顺序重派本租户队列中「未分配」的工单，直到无容量。 */
     public void dispatchQueued() {
         List<Ticket> queued = ticketMapper.selectList(new LambdaQueryWrapper<Ticket>()
                 .eq(Ticket::getStatus, TicketStatus.TRANSFERRING.getCode())
+                .isNull(Ticket::getAgentId)
                 .orderByAsc(Ticket::getCreatedAt));
         for (Ticket ticket : queued) {
             if (!dispatch(ticket.getId())) {
@@ -89,8 +90,9 @@ public class DispatchService {
     private boolean doDispatch(String appId, Long ticketId) {
         Ticket ticket = ticketMapper.selectById(ticketId);
         if (ticket == null || ticket.getStatus() == null
-                || ticket.getStatus() != TicketStatus.TRANSFERRING.getCode()) {
-            // 已被处理或状态不符，幂等返回
+                || ticket.getStatus() != TicketStatus.TRANSFERRING.getCode()
+                || ticket.getAgentId() != null) {
+            // 已被处理、状态不符或已分配，幂等返回
             return false;
         }
         TenantConfig config = tenantConfigService.getCurrent();
@@ -113,18 +115,19 @@ public class DispatchService {
             if (affected != 1) {
                 continue; // 负载被并发改动，尝试下一个候选
             }
+            // 仅「分配」给客服（记录处理人 + 占用容量），状态仍保持「人工转接中」；
+            // 待客服点开工单（accept）才转为「处理中」，即真正接入人工（xuqiu.md 4.2 / 5.4）。
             ticket.setAgentId(candidate.getAccountId());
-            ticket.setStatus(TicketStatus.PROCESSING.getCode());
             ticket.setAssignedAt(LocalDateTime.now());
             ticketMapper.updateById(ticket);
 
             Map<String, Object> payload = new LinkedHashMap<>();
             payload.put("ticketId", ticketId);
             payload.put("userId", ticket.getUserId());
-            payload.put("status", TicketStatus.PROCESSING.getCode());
+            payload.put("status", TicketStatus.TRANSFERRING.getCode());
             notifier.toAgent(appId, candidate.getAccountId(), WsChannelType.NOTIFICATION.getType(), payload);
             notifier.toAgent(appId, candidate.getAccountId(), WsChannelType.TICKET_STATUS.getType(), payload);
-            log.debug("派单成功 app={} ticket={} -> agent={}", appId, ticketId, candidate.getAccountId());
+            log.debug("派单成功（已分配，待接入）app={} ticket={} -> agent={}", appId, ticketId, candidate.getAccountId());
             return true;
         }
         log.debug("派单暂无可用客服 app={} ticket={}", appId, ticketId);

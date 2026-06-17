@@ -36,10 +36,10 @@ onMounted(async () => {
 onUnmounted(() => unsub?.())
 
 function handleWs(msg: WsInbound) {
-  // 新工单分发 / 状态变更 / 新消息 → 刷新会话列表并提醒
-  if (['notification', 'ticket_status', 'chat'].includes(msg.type)) {
+  // 新工单分发 / 状态变更 / 新消息 → 即时刷新「待我处理」列表并提醒
+  if (['notification', 'ticket_status', 'chat', '__open'].includes(msg.type)) {
     loadList()
-    if (msg.type === 'notification') notifyNew('新工单', '有新的工单待接待', true)
+    if (msg.type === 'notification') notifyNew('新工单', '有新的工单分配给你', true)
     else if (msg.type === 'chat') notifyNew('新消息', '收到一条新消息', true)
   }
 }
@@ -76,6 +76,10 @@ async function toggleOnline(val: boolean) {
   }
 }
 
+function statusText(s: number): string {
+  return s === 2 ? '待接入' : s === 3 ? '处理中' : s === 1 ? '智能问答' : '已完结'
+}
+
 function openChat(t: TicketVO) {
   stopTitleFlash()
   router.push(`/chat/${t.id}`)
@@ -96,9 +100,9 @@ async function onLogout() {
 
 <template>
   <div class="page">
-    <van-nav-bar title="我的会话">
+    <van-nav-bar title="待我处理的工单">
       <template #right>
-        <span class="logout" @click="onLogout">退出</span>
+        <span class="logout" @click="onLogout">退出登录</span>
       </template>
     </van-nav-bar>
 
@@ -113,7 +117,7 @@ async function onLogout() {
 
     <van-pull-refresh v-model="loading" @refresh="loadList">
       <div class="list">
-        <van-empty v-if="!tickets.length" description="暂无进行中的会话" />
+        <van-empty v-if="!tickets.length" description="暂无待处理的工单" />
         <van-cell v-for="t in tickets" :key="t.id" is-link center @click="openChat(t)">
           <template #icon>
             <van-image round width="42" height="42" :src="t.avatar" class="avatar">
@@ -122,6 +126,7 @@ async function onLogout() {
           </template>
           <template #title>
             <span class="name">{{ t.nickname || t.userId }}</span>
+            <van-tag :type="t.status === 2 ? 'warning' : 'success'" class="st">{{ statusText(t.status) }}</van-tag>
             <van-badge v-if="t.unreadCount" :content="t.unreadCount" class="badge" />
           </template>
           <template #label>工单 #{{ t.id }} · {{ t.lastMsgAt || t.createdAt || '' }}</template>
@@ -140,5 +145,6 @@ async function onLogout() {
 .avatar { margin-right: 12px; }
 .ph { width: 42px; height: 42px; border-radius: 50%; background: #c8c9cc; color: #fff; display: flex; align-items: center; justify-content: center; }
 .name { font-weight: 600; }
+.st { margin-left: 8px; }
 .badge { margin-left: 8px; }
 </style>

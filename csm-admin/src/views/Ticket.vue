@@ -53,6 +53,15 @@ async function openMessages(row: TicketVO) {
 function senderLabel(t: number): string {
   return t === 1 ? '用户' : t === 2 ? '客服' : '系统'
 }
+
+const VIDEO_EXT = ['.mp4', '.webm', '.ogg', '.mov', '.m4v', '.m3u8']
+function isVideoUrl(url: string): boolean {
+  const u = (url || '').toLowerCase().split('?')[0]
+  return VIDEO_EXT.some((e) => u.endsWith(e))
+}
+function fileNameOf(url: string): string {
+  return (url || '').split('?')[0].split('/').pop() || '文件'
+}
 </script>
 
 <template>
@@ -97,7 +106,13 @@ function senderLabel(t: number): string {
         <div v-for="m in messages" :key="m.id" class="msg" :class="'s' + m.senderType">
           <div class="meta">{{ senderLabel(m.senderType) }} · {{ m.createdAt }}</div>
           <div class="bubble">
-            <el-image v-if="m.contentType === 2" :src="m.content" style="max-width: 200px" />
+            <el-image v-if="m.contentType === 2" :src="m.content" :preview-src-list="[m.content]"
+              preview-teleported fit="cover" style="max-width: 200px" />
+            <video v-else-if="m.contentType === 3 && isVideoUrl(m.content)" :src="m.content" controls
+              style="max-width: 240px" />
+            <el-link v-else-if="m.contentType === 3" type="primary" :href="m.content" target="_blank">
+              {{ fileNameOf(m.content) }}
+            </el-link>
             <span v-else>{{ m.content }}</span>
           </div>
         </div>

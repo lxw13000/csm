@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { showConfirmDialog, showSuccessToast, showToast } from 'vant'
+import { showConfirmDialog, showImagePreview, showSuccessToast, showToast } from 'vant'
 import * as api from '@/api'
 import { initRealtime, onWs, wsOpen, wsSend } from '@/utils/realtime'
 import { unlockAudio } from '@/utils/notify'
+import { contentTypeOfFile, fileNameOf, isVideoUrl } from '@/utils/media'
 import { TOKEN_KEY } from '@/api/request'
-import type { MessageVO, TicketVO, WsInbound } from '@/types/api'
+import type { AccountBrief, MessageVO, TicketVO, WsInbound } from '@/types/api'
 
 const route = useRoute()
 const router = useRouter()
@@ -16,16 +17,20 @@ const ticket = ref<TicketVO>()
 const messages = ref<MessageVO[]>([])
 const input = ref('')
 const sending = ref(false)
+const uploading = ref(false)
 const peerTyping = ref(false)
 const peerReadSeq = ref(0)
 const closed = computed(() => ticket.value?.status === 4)
 const listRef = ref<HTMLElement>()
+const imageInput = ref<HTMLInputElement>()
+const fileInput = ref<HTMLInputElement>()
 let unsub: (() => void) | null = null
 let tempSeq = -1
 let typingTimer: number | undefined
 let lastTypingSent = 0
 
-const transfer = reactive({ show: false, toAgentId: '' as string | number, reason: '' })
+const transfer = reactive({ show: false, toAgentId: 0, toAgentName: '', reason: '' })
+const sheet = reactive({ show: false, actions: [] as { name: string; agentId: number }[] })
 
 onMounted(async () => {
   initRealtime(localStorage.getItem(TOKEN_KEY) || '')
@@ -40,7 +45,8 @@ onUnmounted(() => {
 
 async function loadAll() {
   try {
-    ticket.value = await api.ticketDetail(ticketId)
+    // 点开工单 = 接入人工（转接中 -> 处理中）
+    ticket.value = await api.acceptTicket(ticketId)
     messages.value = await api.ticketMessages(ticketId)
     scrollToBottom()
     reportRead()
@@ -66,7 +72,6 @@ function upsert(m: MessageVO) {
 
 function handleWs(msg: WsInbound) {
   if (msg.type === '__open') {
-    // 重连后按最后序号增量恢复
     api.ticketMessages(ticketId, maxRealSeq()).then((list) => {
       list.forEach(upsert)
       scrollToBottom()
@@ -120,35 +125,66 @@ function onInput() {
   }
 }
 
-async function send() {
+function sendText() {
   const content = input.value.trim()
-  if (!content || closed.value) return
+  if (!content) return
+  input.value = ''
+  sendContent(content, 1)
+}
+
+function sendContent(content: string, contentType: number) {
+  if (closed.value) {
+    showToast('工单已完结')
+    return
+  }
   unlockAudio()
   const clientMsgId = 'a-' + Date.now() + '-' + Math.floor(performance.now())
   const optimistic: MessageVO = {
-    id: 0, ticketId, seq: tempSeq--, senderType: 2, contentType: 1, content,
+    id: 0, ticketId, seq: tempSeq--, senderType: 2, contentType, content,
     createdAt: new Date().toLocaleString(), _pending: true, _clientMsgId: clientMsgId
   }
   messages.value.push(optimistic)
-  input.value = ''
   scrollToBottom()
 
-  // 优先经 WebSocket 发送（服务端落库后回 ack）；连接不可用则降级 REST
   if (wsOpen()) {
-    wsSend({ type: 'chat', ticketId, content, contentType: 1, clientMsgId })
+    wsSend({ type: 'chat', ticketId, content, contentType, clientMsgId })
   } else {
     sending.value = true
-    try {
-      const saved = await api.reply(ticketId, { content, contentType: 1, clientMsgId })
-      const i = messages.value.findIndex((x) => x._clientMsgId === clientMsgId)
-      if (i >= 0) messages.value[i] = saved
-    } catch {
-      const i = messages.value.findIndex((x) => x._clientMsgId === clientMsgId)
-      if (i >= 0) messages.value.splice(i, 1)
-    } finally {
-      sending.value = false
-    }
+    api.reply(ticketId, { content, contentType, clientMsgId })
+      .then((saved) => {
+        const i = messages.value.findIndex((x) => x._clientMsgId === clientMsgId)
+        if (i >= 0) messages.value[i] = saved
+      })
+      .catch(() => {
+        const i = messages.value.findIndex((x) => x._clientMsgId === clientMsgId)
+        if (i >= 0) messages.value.splice(i, 1)
+      })
+      .finally(() => (sending.value = false))
   }
+}
+
+async function onFileChosen(e: Event) {
+  const el = e.target as HTMLInputElement
+  const file = el.files?.[0]
+  el.value = '' // 允许重复选择同一文件
+  if (!file) return
+  uploading.value = true
+  try {
+    const res = await api.upload(file)
+    sendContent(res.url, contentTypeOfFile(file))
+  } catch {
+    showToast('上传失败')
+  } finally {
+    uploading.value = false
+  }
+}
+
+function previewImage(url: string) {
+  showImagePreview([url])
+}
+
+function openFile(url: string) {
+  window.open(url, '_blank')
 }
 
 function scrollToBottom() {
@@ -162,14 +198,34 @@ function readTag(m: MessageVO): boolean {
   return m.senderType === 2 && !m._pending && peerReadSeq.value >= m.seq
 }
 
+async function openTransfer() {
+  try {
+    const targets = await api.transferTargets()
+    const me = ticket.value?.agentId
+    sheet.actions = targets
+      .filter((t: AccountBrief) => t.id !== me)
+      .map((t) => ({ name: (t.realName || t.username) + ' (#' + t.id + ')', agentId: t.id }))
+    transfer.toAgentId = 0
+    transfer.toAgentName = ''
+    transfer.reason = ''
+    transfer.show = true
+  } catch {
+    /* ignore */
+  }
+}
+
+function onPickAgent(action: { name: string; agentId: number }) {
+  transfer.toAgentId = action.agentId
+  transfer.toAgentName = action.name
+}
+
 async function doTransfer() {
-  const id = Number(transfer.toAgentId)
-  if (!id) {
-    showToast('请输入目标客服ID')
+  if (!transfer.toAgentId) {
+    showToast('请选择目标客服')
     return
   }
   try {
-    await api.transfer(ticketId, { toAgentId: id, reason: transfer.reason })
+    await api.transfer(ticketId, { toAgentId: transfer.toAgentId, reason: transfer.reason })
     transfer.show = false
     showSuccessToast('已转接')
     router.replace('/tickets')
@@ -198,15 +254,26 @@ function senderClass(m: MessageVO): string {
   <div class="chat">
     <van-nav-bar :title="ticket?.nickname || ticket?.userId || '会话'" left-arrow @click-left="router.back()">
       <template #right>
-        <span class="act" @click="transfer.show = true">转接</span>
+        <span class="act" @click="openTransfer">转接</span>
         <span class="act danger" @click="doClose">关闭</span>
       </template>
     </van-nav-bar>
 
     <div ref="listRef" class="messages">
       <div v-for="m in messages" :key="m._clientMsgId || m.seq" class="row" :class="senderClass(m)">
-        <div class="bubble">
-          <van-image v-if="m.contentType === 2" :src="m.content" width="160" />
+        <div class="bubble" :class="{ media: m.contentType !== 1 }">
+          <template v-if="m.contentType === 2">
+            <van-image :src="m.content" width="160" fit="cover" radius="6" @click="previewImage(m.content)" />
+          </template>
+          <template v-else-if="m.contentType === 3 && isVideoUrl(m.content)">
+            <video :src="m.content" controls preload="metadata" class="video" />
+          </template>
+          <template v-else-if="m.contentType === 3">
+            <div class="file" @click="openFile(m.content)">
+              <van-icon name="description" size="20" />
+              <span class="fname">{{ fileNameOf(m.content) }}</span>
+            </div>
+          </template>
           <span v-else>{{ m.content }}</span>
         </div>
         <div class="sub">
@@ -219,18 +286,25 @@ function senderClass(m: MessageVO): string {
     </div>
 
     <div class="input-bar">
+      <van-icon name="photograph" size="24" class="attach" @click="imageInput?.click()" />
+      <van-icon name="add-o" size="24" class="attach" @click="fileInput?.click()" />
       <van-field v-model="input" :disabled="closed" placeholder="输入回复…" @update:model-value="onInput"
-        @keyup.enter="send" />
-      <van-button type="primary" size="small" :loading="sending" :disabled="closed" @click="send">发送</van-button>
+        @keyup.enter="sendText" />
+      <van-button type="primary" size="small" :loading="sending || uploading" :disabled="closed" @click="sendText">发送</van-button>
+      <input ref="imageInput" type="file" accept="image/*" hidden @change="onFileChosen" />
+      <input ref="fileInput" type="file" accept="video/*,*/*" hidden @change="onFileChosen" />
     </div>
 
-    <van-dialog v-model:show="transfer.show" title="转接工单" show-cancel-button :before-close="undefined"
-      @confirm="doTransfer">
+    <van-dialog v-model:show="transfer.show" title="转接工单" show-cancel-button @confirm="doTransfer">
       <div class="dlg">
-        <van-field v-model="transfer.toAgentId" type="digit" label="目标客服ID" placeholder="输入客服账号ID" />
+        <van-field :model-value="transfer.toAgentName" readonly is-link label="目标客服"
+          placeholder="点击选择客服" @click="sheet.show = true" />
         <van-field v-model="transfer.reason" label="原因" placeholder="选填" />
       </div>
     </van-dialog>
+
+    <van-action-sheet v-model:show="sheet.show" :actions="sheet.actions" cancel-text="取消"
+      title="选择客服" @select="onPickAgent" />
   </div>
 </template>
 
@@ -241,6 +315,7 @@ function senderClass(m: MessageVO): string {
 .messages { flex: 1; overflow-y: auto; padding: 12px; background: #f7f8fa; }
 .row { display: flex; flex-direction: column; margin-bottom: 12px; }
 .row .bubble { max-width: 72%; padding: 8px 12px; border-radius: 10px; word-break: break-word; }
+.row .bubble.media { padding: 4px; background: transparent !important; }
 .row .sub { font-size: 11px; color: #969799; margin-top: 2px; }
 .row.peer { align-items: flex-start; }
 .row.peer .bubble { background: #fff; }
@@ -250,7 +325,11 @@ function senderClass(m: MessageVO): string {
 .row.sys { align-items: center; }
 .row.sys .bubble { background: #ededed; color: #646566; font-size: 13px; }
 .bubble.typing { background: #fff; color: #969799; font-size: 13px; }
-.input-bar { display: flex; align-items: center; gap: 8px; padding: 8px; background: #fff; border-top: 1px solid #ebedf0; }
+.video { max-width: 220px; border-radius: 6px; }
+.file { display: flex; align-items: center; gap: 6px; background: #fff; color: #323233; padding: 8px 12px; border-radius: 8px; }
+.file .fname { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.input-bar { display: flex; align-items: center; gap: 6px; padding: 8px; background: #fff; border-top: 1px solid #ebedf0; }
+.input-bar .attach { color: #646566; }
 .input-bar .van-field { flex: 1; }
 .input-bar .van-button { margin-right: 4px; }
 .dlg { padding: 8px 0; }
