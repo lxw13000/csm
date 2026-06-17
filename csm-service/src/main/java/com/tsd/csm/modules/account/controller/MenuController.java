@@ -40,6 +40,11 @@ public class MenuController {
         return R.ok(menuService.fullTree());
     }
 
+    /**
+     * 新增菜单（仅平台超管）。
+     * @param dto 菜单信息
+     * @return 新增的菜单
+     */
     @PostMapping
     @RequireRole(AccountType.PLATFORM_SUPER)
     public R<Menu> create(@RequestBody @Valid MenuSaveDTO dto) {
@@ -48,6 +53,12 @@ public class MenuController {
         return R.ok(menu);
     }
 
+    /**
+     * 编辑菜单（仅平台超管）。
+     * @param id 菜单 id
+     * @param dto 菜单信息
+     * @return 更新后的菜单
+     */
     @PutMapping("/{id}")
     @RequireRole(AccountType.PLATFORM_SUPER)
     public R<Menu> update(@PathVariable Long id, @RequestBody @Valid MenuSaveDTO dto) {
@@ -57,6 +68,10 @@ public class MenuController {
         return R.ok(menu);
     }
 
+    /**
+     * 删除菜单（仅平台超管）。
+     * @param id 菜单 id
+     */
     @DeleteMapping("/{id}")
     @RequireRole(AccountType.PLATFORM_SUPER)
     public R<Void> delete(@PathVariable Long id) {
@@ -64,6 +79,7 @@ public class MenuController {
         return R.ok();
     }
 
+    /** 将入参拷贝到菜单实体，parentId/sort 缺省补 0。 */
     private Menu apply(Menu menu, MenuSaveDTO dto) {
         menu.setParentId(dto.getParentId() == null ? 0L : dto.getParentId());
         menu.setName(dto.getName());

@@ -32,18 +32,33 @@ public class TenantController {
         this.tenantService = tenantService;
     }
 
+    /**
+     * 分页查询租户。
+     * @param query 查询条件
+     * @return 租户分页结果
+     */
     @GetMapping("/page")
     @RequireRole(AccountType.PLATFORM_SUPER)
     public R<PageResult<Tenant>> page(TenantQuery query) {
         return R.ok(tenantService.pageTenants(query));
     }
 
+    /**
+     * 租户详情。
+     * @param id 租户 id
+     * @return 租户
+     */
     @GetMapping("/{id}")
     @RequireRole(AccountType.PLATFORM_SUPER)
     public R<Tenant> get(@PathVariable Long id) {
         return R.ok(tenantService.getById(id));
     }
 
+    /**
+     * 新增租户接入（并预置默认配置）。
+     * @param dto 租户信息
+     * @return 新增的租户
+     */
     @PostMapping
     @RequireRole(AccountType.PLATFORM_SUPER)
     @AuditLog(module = "tenant", action = "create", targetType = "tenant")
@@ -51,12 +66,23 @@ public class TenantController {
         return R.ok(tenantService.createTenant(dto));
     }
 
+    /**
+     * 编辑租户接入。
+     * @param id 租户 id
+     * @param dto 租户信息
+     * @return 更新后的租户
+     */
     @PutMapping("/{id}")
     @RequireRole(AccountType.PLATFORM_SUPER)
     public R<Tenant> update(@PathVariable Long id, @RequestBody @Valid TenantSaveDTO dto) {
         return R.ok(tenantService.updateTenant(id, dto));
     }
 
+    /**
+     * 启用/停用租户接入。
+     * @param id 租户 id
+     * @param status 状态：1 启用 / 0 停用
+     */
     @PutMapping("/{id}/status")
     @RequireRole(AccountType.PLATFORM_SUPER)
     public R<Void> changeStatus(@PathVariable Long id, @RequestParam Integer status) {

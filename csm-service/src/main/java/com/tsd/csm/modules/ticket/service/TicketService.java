@@ -164,15 +164,30 @@ public class TicketService extends ServiceImpl<TicketMapper, Ticket> {
         return ticket;
     }
 
+    /**
+     * 用户标记已解决：完结其当前工单。
+     * @param userId C 端用户 id
+     * @return 完结后的工单
+     */
     public Ticket resolveByUser(String userId) {
         Ticket ticket = activeOrThrow(userId);
         return closeTicket(ticket.getId(), CloseType.USER_RESOLVED.getCode());
     }
 
+    /**
+     * 客服强制完结工单。
+     * @param ticketId 工单 id
+     * @return 完结后的工单
+     */
     public Ticket forceClose(Long ticketId) {
         return closeTicket(ticketId, CloseType.AGENT_FORCE.getCode());
     }
 
+    /**
+     * 超时自动完结工单（供定时任务调用）。
+     * @param ticketId 工单 id
+     * @return 完结后的工单
+     */
     public Ticket autoClose(Long ticketId) {
         return closeTicket(ticketId, CloseType.AUTO_TIMEOUT.getCode());
     }
@@ -238,16 +253,34 @@ public class TicketService extends ServiceImpl<TicketMapper, Ticket> {
         }
     }
 
+    /**
+     * 推进已读水位（校验工单归属后委托消息服务）。
+     * @param ticketId 工单 id
+     * @param readerType 阅读方类型：1 用户 / 2 客服
+     * @param readerId 阅读方标识
+     * @param seq 已读到的消息序号
+     */
     public void markRead(Long ticketId, int readerType, String readerId, long seq) {
         getOwned(ticketId);
         messageService.markRead(ticketId, readerType, readerId, seq);
     }
 
+    /**
+     * 工单消息列表。
+     * @param ticketId 工单 id
+     * @param afterSeq 增量游标，可空
+     * @return 消息 VO 列表
+     */
     public List<MessageVO> messages(Long ticketId, Long afterSeq) {
         getOwned(ticketId);
         return messageService.history(ticketId, afterSeq).stream().map(messageService::toVO).toList();
     }
 
+    /**
+     * 管理端分页查询本租户工单。
+     * @param query 查询条件
+     * @return 工单分页结果
+     */
     public PageResult<TicketVO> pageForAdmin(TicketQuery query) {
         Page<Ticket> page = lambdaQuery()
                 .eq(StringUtils.hasText(query.getUserId()), Ticket::getUserId, query.getUserId())
@@ -270,16 +303,28 @@ public class TicketService extends ServiceImpl<TicketMapper, Ticket> {
                 .toList();
     }
 
+    /**
+     * 客服查看工单详情（含未读数）。
+     * @param ticketId 工单 id
+     * @param agentId 客服账号 id
+     * @return 工单详情
+     */
     public TicketVO detailForAgent(Long ticketId, Long agentId) {
         Ticket ticket = getOwned(ticketId);
         return toVO(ticket, true, ReaderType.AGENT.getCode(), String.valueOf(agentId));
     }
 
+    /**
+     * 用户当前工单（无则新建并进入智能问答）。
+     * @param userId C 端用户 id
+     * @return 当前工单详情
+     */
     public TicketVO currentForUser(String userId) {
         Ticket ticket = getOrCreateActive(userId);
         return toVO(ticket, true, ReaderType.USER.getCode(), userId);
     }
 
+    /** 取用户当前未完结工单，没有则抛业务异常。 */
     private Ticket activeOrThrow(String userId) {
         Ticket ticket = lambdaQuery()
                 .eq(Ticket::getUserId, userId)
@@ -293,6 +338,7 @@ public class TicketService extends ServiceImpl<TicketMapper, Ticket> {
         return ticket;
     }
 
+    /** 取用户最近一条工单（含已完结），无则返回 null。 */
     private Ticket activeOrLast(String userId) {
         return lambdaQuery()
                 .eq(Ticket::getUserId, userId)
@@ -301,6 +347,7 @@ public class TicketService extends ServiceImpl<TicketMapper, Ticket> {
                 .one();
     }
 
+    /** 按 id 取本租户工单，不存在抛 404。 */
     private Ticket getOwned(Long id) {
         Ticket ticket = getById(id);
         if (ticket == null) {
@@ -309,6 +356,7 @@ public class TicketService extends ServiceImpl<TicketMapper, Ticket> {
         return ticket;
     }
 
+    /** 向用户（及当前客服）推送工单状态变更。 */
     private void notifyTicketStatus(Ticket ticket, Long agentId) {
         Map<String, Object> payload = statusPayload(ticket);
         notifier.toUser(ticket.getAppId(), ticket.getUserId(), WsChannelType.TICKET_STATUS.getType(), payload);
@@ -317,6 +365,7 @@ public class TicketService extends ServiceImpl<TicketMapper, Ticket> {
         }
     }
 
+    /** 组装工单状态变更推送载荷。 */
     private Map<String, Object> statusPayload(Ticket ticket) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("ticketId", ticket.getId());
@@ -326,6 +375,14 @@ public class TicketService extends ServiceImpl<TicketMapper, Ticket> {
         return payload;
     }
 
+    /**
+     * 工单实体转展示 VO，可选附带客户资料与未读数。
+     * @param ticket 工单实体
+     * @param withUnread 是否计算未读数
+     * @param readerType 阅读方类型（计算未读数时用）
+     * @param readerId 阅读方标识（计算未读数时用）
+     * @return 工单 VO
+     */
     private TicketVO toVO(Ticket ticket, boolean withUnread, int readerType, String readerId) {
         TicketVO vo = new TicketVO();
         vo.setId(ticket.getId());

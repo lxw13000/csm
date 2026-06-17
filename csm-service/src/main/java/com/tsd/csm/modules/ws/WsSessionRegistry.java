@@ -21,18 +21,22 @@ public class WsSessionRegistry {
 
     private final ConcurrentHashMap<String, Set<WebSocketSession>> sessions = new ConcurrentHashMap<>();
 
+    /** C 端用户连接的注册 key。 */
     public static String userKey(String appId, String userId) {
         return appId + ":user:" + userId;
     }
 
+    /** 客服连接的注册 key。 */
     public static String agentKey(String appId, Long accountId) {
         return appId + ":agent:" + accountId;
     }
 
+    /** 注册一条连接到指定 key（同一 key 可有多条连接）。 */
     public void register(String key, WebSocketSession session) {
         sessions.computeIfAbsent(key, ignored -> ConcurrentHashMap.newKeySet()).add(session);
     }
 
+    /** 注销连接，该 key 下无连接时清除条目。 */
     public void unregister(String key, WebSocketSession session) {
         Set<WebSocketSession> set = sessions.get(key);
         if (set == null) {
@@ -44,6 +48,7 @@ public class WsSessionRegistry {
         }
     }
 
+    /** 取指定 key 的本地连接集合（无则空集）。 */
     public Set<WebSocketSession> find(String key) {
         return sessions.getOrDefault(key, Set.of());
     }

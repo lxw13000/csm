@@ -34,10 +34,11 @@ AS new ON DUPLICATE KEY UPDATE name = new.name;
 INSERT INTO csm_tenant (id, app_id, app_secret, name, identity_api, user_info_api, status, remark) VALUES
   (1, 'biz_demo', 'demo_secret_please_change',
    '演示业务系统',
-   'http://localhost:8080/api/h5/mock/identity',
-   'http://localhost:8080/api/h5/mock/user-info',
+   'http://localhost:8081/api/h5/mock/identity',
+   'http://localhost:8081/api/h5/mock/user-info',
    1, '内置演示租户，对接接口指向 service 自带 mock')
-AS new ON DUPLICATE KEY UPDATE name = new.name;
+AS new ON DUPLICATE KEY UPDATE name = new.name,
+   identity_api = new.identity_api, user_info_api = new.user_info_api;
 
 -- ---- 示例租户的租户级配置 --------------------------------------------------
 INSERT INTO csm_tenant_config (app_id, max_concurrent, auto_close_minutes, notify_sound) VALUES

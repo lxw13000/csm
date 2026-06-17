@@ -21,6 +21,11 @@ public class AgentStatusService extends ServiceImpl<AgentStatusMapper, AgentStat
         this.dispatchService = dispatchService;
     }
 
+    /**
+     * 客服上线：置为在线并记录上线时间，随后重派队列中的工单。
+     * @param accountId 客服账号 id
+     * @return 更新后的客服状态
+     */
     public AgentStatus online(Long accountId) {
         AgentStatus status = getOrCreate(accountId);
         status.setOnlineStatus(OnlineStatus.ONLINE.getCode());
@@ -31,6 +36,11 @@ public class AgentStatusService extends ServiceImpl<AgentStatusMapper, AgentStat
         return status;
     }
 
+    /**
+     * 客服下线：仅置为离线，不影响其已接工单。
+     * @param accountId 客服账号 id
+     * @return 更新后的客服状态
+     */
     public AgentStatus offline(Long accountId) {
         AgentStatus status = getOrCreate(accountId);
         status.setOnlineStatus(OnlineStatus.OFFLINE.getCode());
@@ -38,10 +48,16 @@ public class AgentStatusService extends ServiceImpl<AgentStatusMapper, AgentStat
         return status;
     }
 
+    /**
+     * 查询客服当前状态（不存在则初始化为离线）。
+     * @param accountId 客服账号 id
+     * @return 客服状态
+     */
     public AgentStatus current(Long accountId) {
         return getOrCreate(accountId);
     }
 
+    /** 取客服状态行，不存在则新建一条离线、零负载的记录。 */
     private AgentStatus getOrCreate(Long accountId) {
         AgentStatus status = lambdaQuery().eq(AgentStatus::getAccountId, accountId).one();
         if (status != null) {

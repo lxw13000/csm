@@ -28,12 +28,23 @@ public class AdminTicketController {
         this.ticketService = ticketService;
     }
 
+    /**
+     * 分页查询本租户工单（会话组列表）。
+     * @param query 查询条件
+     * @return 工单分页结果
+     */
     @GetMapping("/page")
     @RequiresPermission("ticket:list")
     public R<PageResult<TicketVO>> page(TicketQuery query) {
         return R.ok(ticketService.pageForAdmin(query));
     }
 
+    /**
+     * 查看工单聊天记录。
+     * @param id 工单 id
+     * @param afterSeq 增量游标，仅返回更大序号的消息，可空
+     * @return 消息列表
+     */
     @GetMapping("/{id}/messages")
     @RequiresPermission("ticket:list")
     public R<List<MessageVO>> messages(@PathVariable Long id,

@@ -80,6 +80,12 @@ public class MessageService extends ServiceImpl<MessageMapper, Message> {
         return message;
     }
 
+    /**
+     * 拉取工单消息（按 seq 升序）。
+     * @param ticketId 工单 id
+     * @param afterSeq 增量游标：仅返回 seq 大于它的消息，null 表示全量
+     * @return 消息列表
+     */
     public List<Message> history(Long ticketId, Long afterSeq) {
         return lambdaQuery()
                 .eq(Message::getTicketId, ticketId)
@@ -121,6 +127,11 @@ public class MessageService extends ServiceImpl<MessageMapper, Message> {
                 .count();
     }
 
+    /**
+     * 消息实体转展示 VO。
+     * @param message 消息实体
+     * @return 消息 VO
+     */
     public MessageVO toVO(Message message) {
         MessageVO vo = new MessageVO();
         vo.setId(message.getId());
@@ -135,6 +146,7 @@ public class MessageService extends ServiceImpl<MessageMapper, Message> {
         return vo;
     }
 
+    /** 取某阅读方在该工单的已读高水位 seq（无记录为 0）。 */
     private long watermark(Long ticketId, int readerType, String readerId) {
         MessageRead record = messageReadMapper.selectOne(new LambdaQueryWrapper<MessageRead>()
                 .eq(MessageRead::getTicketId, ticketId)
@@ -143,6 +155,7 @@ public class MessageService extends ServiceImpl<MessageMapper, Message> {
         return record == null || record.getLastReadSeq() == null ? 0L : record.getLastReadSeq();
     }
 
+    /** 按 client_msg_id 查已落库消息（幂等去重用），为空或未找到返回 null。 */
     private Message findByClientMsgId(Long ticketId, String clientMsgId) {
         if (clientMsgId == null || clientMsgId.isBlank()) {
             return null;
@@ -153,6 +166,7 @@ public class MessageService extends ServiceImpl<MessageMapper, Message> {
                 .one();
     }
 
+    /** 取工单内 seq 最大的消息（最后一条），无则返回 null。 */
     private Message latestMessage(Long ticketId) {
         return lambdaQuery()
                 .eq(Message::getTicketId, ticketId)
@@ -174,6 +188,7 @@ public class MessageService extends ServiceImpl<MessageMapper, Message> {
         return seq == null ? 1L : seq;
     }
 
+    /** 刷新工单的首条消息时间（仅首次）与最后消息时间。 */
     private void touchTicket(Long ticketId) {
         Ticket ticket = ticketMapper.selectById(ticketId);
         if (ticket == null) {

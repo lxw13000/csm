@@ -26,6 +26,11 @@ public class TenantConfigService extends ServiceImpl<TenantConfigMapper, TenantC
         return config;
     }
 
+    /**
+     * 更新当前租户配置（notifySound 为空则保留原值）。
+     * @param dto 配置项
+     * @return 更新后的配置
+     */
     public TenantConfig update(TenantConfigUpdateDTO dto) {
         TenantConfig config = getCurrent();
         config.setMaxConcurrent(dto.getMaxConcurrent());

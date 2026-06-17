@@ -45,6 +45,7 @@ public class WsHandshakeInterceptor implements HandshakeInterceptor {
         // no-op
     }
 
+    /** 从 query string 中提取 token 参数，缺失返回 null。 */
     private String resolveToken(String query) {
         if (query == null || query.isBlank()) {
             return null;

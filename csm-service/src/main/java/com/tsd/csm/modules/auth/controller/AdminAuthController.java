@@ -30,16 +30,28 @@ public class AdminAuthController {
         this.authService = authService;
     }
 
+    /**
+     * 平台超管 / 租户管理员登录。
+     * @param dto 登录信息（appId + 用户名 + 密码）
+     * @return 登录结果（含 token、菜单、权限码）
+     */
     @PostMapping("/login")
     public R<LoginVO> login(@RequestBody @Valid LoginDTO dto) {
         return R.ok(authService.login(dto, ADMIN_TYPES));
     }
 
+    /**
+     * 当前登录用户信息（菜单 + 权限码）。
+     * @return 用户信息
+     */
     @GetMapping("/me")
     public R<LoginVO> me() {
         return R.ok(authService.currentUserInfo());
     }
 
+    /**
+     * 登出（JWT 无状态，实际由客户端丢弃 token）。
+     */
     @PostMapping("/logout")
     public R<Void> logout() {
         // JWT 无状态，登出由客户端丢弃 token 即可

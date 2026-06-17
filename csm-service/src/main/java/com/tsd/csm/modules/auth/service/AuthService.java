@@ -97,6 +97,7 @@ public class AuthService {
         return vo;
     }
 
+    /** 组装登录/当前用户信息：按账号所属租户加载权限点与可见菜单树。 */
     private LoginVO buildUserInfo(LoginUser user) {
         LoginVO vo = new LoginVO();
         vo.setAccountId(user.getAccountId());

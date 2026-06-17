@@ -23,6 +23,13 @@ public class CustomerController {
         this.customerService = customerService;
     }
 
+    /**
+     * 分页检索本租户 C 端用户缓存。
+     * @param current 页码
+     * @param size 每页条数
+     * @param keyword user_id/昵称模糊词，可空
+     * @return 用户分页结果
+     */
     @GetMapping("/page")
     @RequiresPermission("customer:list")
     public R<PageResult<CustomerVO>> page(@RequestParam(defaultValue = "1") long current,
@@ -31,6 +38,11 @@ public class CustomerController {
         return R.ok(customerService.page(current, size, keyword));
     }
 
+    /**
+     * 实时查询用户详情（优先业务系统，失败降级缓存）。
+     * @param userId 业务系统用户 id
+     * @return 用户详情
+     */
     @GetMapping("/detail")
     @RequiresPermission("customer:list")
     public R<CustomerVO> detail(@RequestParam String userId) {

@@ -32,36 +32,66 @@ public class AccountController {
         this.accountService = accountService;
     }
 
+    /**
+     * 分页查询本租户账号。
+     * @param query 查询条件
+     * @return 账号分页结果
+     */
     @GetMapping("/page")
     @RequiresPermission("account:list")
     public R<PageResult<AccountVO>> page(AccountQuery query) {
         return R.ok(accountService.pageAccounts(query));
     }
 
+    /**
+     * 账号详情。
+     * @param id 账号 id
+     * @return 账号详情
+     */
     @GetMapping("/{id}")
     @RequiresPermission("account:list")
     public R<AccountVO> detail(@PathVariable Long id) {
         return R.ok(accountService.toVO(accountService.getById(id)));
     }
 
+    /**
+     * 本租户客服账号列表（用于转接选择等）。
+     * @return 客服账号列表
+     */
     @GetMapping("/agents")
     @RequiresPermission("account:list")
     public R<List<AccountVO>> agents() {
         return R.ok(accountService.listAgents());
     }
 
+    /**
+     * 新增账号。
+     * @param dto 账号信息
+     * @return 新增的账号
+     */
     @PostMapping
     @RequiresPermission("account:list")
     public R<AccountVO> create(@RequestBody @Valid AccountSaveDTO dto) {
         return R.ok(accountService.createAccount(dto));
     }
 
+    /**
+     * 编辑账号。
+     * @param id 账号 id
+     * @param dto 账号信息
+     * @return 更新后的账号
+     */
     @PutMapping("/{id}")
     @RequiresPermission("account:list")
     public R<AccountVO> update(@PathVariable Long id, @RequestBody @Valid AccountSaveDTO dto) {
         return R.ok(accountService.updateAccount(id, dto));
     }
 
+    /**
+     * 重置账号密码。
+     * @param id 账号 id
+     * @param password 新密码
+     */
     @PutMapping("/{id}/password")
     @RequiresPermission("account:list")
     public R<Void> resetPassword(@PathVariable Long id, @RequestParam String password) {
@@ -69,6 +99,11 @@ public class AccountController {
         return R.ok();
     }
 
+    /**
+     * 启用/禁用账号。
+     * @param id 账号 id
+     * @param status 状态：1 启用 / 0 禁用
+     */
     @PutMapping("/{id}/status")
     @RequiresPermission("account:list")
     public R<Void> changeStatus(@PathVariable Long id, @RequestParam Integer status) {

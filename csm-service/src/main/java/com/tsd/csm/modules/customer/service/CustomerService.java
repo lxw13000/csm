@@ -34,6 +34,7 @@ public class CustomerService extends ServiceImpl<CustomerMapper, Customer> {
         this.tenantService = tenantService;
     }
 
+    /** 取用户缓存记录（无则返回 null）。 */
     public Customer getCached(String userId) {
         return lambdaQuery().eq(Customer::getUserId, userId).one();
     }
@@ -80,6 +81,13 @@ public class CustomerService extends ServiceImpl<CustomerMapper, Customer> {
         return toVO(cached, false);
     }
 
+    /**
+     * 分页检索本租户用户缓存。
+     * @param current 页码
+     * @param size 每页条数
+     * @param keyword user_id/昵称模糊词，可空
+     * @return 用户分页结果
+     */
     public PageResult<CustomerVO> page(long current, long size, String keyword) {
         Page<Customer> page = lambdaQuery()
                 // OR 条件必须整体分组，避免与拦截器追加的 app_id 条件因 AND/OR 优先级而越权
@@ -91,6 +99,7 @@ public class CustomerService extends ServiceImpl<CustomerMapper, Customer> {
         return PageResult.of(page, c -> toVO(c, false));
     }
 
+    /** 将业务系统返回的用户信息写入缓存实体（手机号脱敏）。 */
     private void applyInfo(Customer c, CustomerInfo info) {
         if (info == null) {
             return;
@@ -102,6 +111,12 @@ public class CustomerService extends ServiceImpl<CustomerMapper, Customer> {
         c.setRegisterTime(parse(info.getRegisterTime()));
     }
 
+    /**
+     * 缓存实体转展示 VO。
+     * @param c 用户缓存实体
+     * @param latest 是否为业务系统实时数据
+     * @return 用户 VO
+     */
     public CustomerVO toVO(Customer c, boolean latest) {
         CustomerVO vo = new CustomerVO();
         vo.setUserId(c.getUserId());
@@ -115,6 +130,7 @@ public class CustomerService extends ServiceImpl<CustomerMapper, Customer> {
         return vo;
     }
 
+    /** 解析 yyyy-MM-dd HH:mm:ss 时间字符串，空或非法返回 null。 */
     private LocalDateTime parse(String s) {
         if (!StringUtils.hasText(s)) {
             return null;

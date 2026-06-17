@@ -23,21 +23,34 @@ public class AgentController {
         this.agentStatusService = agentStatusService;
     }
 
+    /**
+     * 客服上线（同时触发队列工单重派）。
+     * @return 当前客服在线状态
+     */
     @PostMapping("/online")
     public R<AgentStatus> online() {
         return R.ok(agentStatusService.online(currentAgentId()));
     }
 
+    /**
+     * 客服下线。
+     * @return 当前客服在线状态
+     */
     @PostMapping("/offline")
     public R<AgentStatus> offline() {
         return R.ok(agentStatusService.offline(currentAgentId()));
     }
 
+    /**
+     * 查询当前客服在线状态。
+     * @return 当前客服在线状态
+     */
     @GetMapping("/status")
     public R<AgentStatus> status() {
         return R.ok(agentStatusService.current(currentAgentId()));
     }
 
+    /** 取当前登录客服的账号 id。 */
     private Long currentAgentId() {
         LoginUser user = UserContext.required();
         return user.getAccountId();

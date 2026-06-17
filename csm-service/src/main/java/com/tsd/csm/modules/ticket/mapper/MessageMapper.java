@@ -6,6 +6,9 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
+/**
+ * 消息 Mapper。对应 csm_message。
+ */
 @Mapper
 public interface MessageMapper extends BaseMapper<Message> {
 

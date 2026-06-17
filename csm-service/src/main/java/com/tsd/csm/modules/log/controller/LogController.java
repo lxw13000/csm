@@ -23,6 +23,11 @@ public class LogController {
         this.operationLogService = operationLogService;
     }
 
+    /**
+     * 分页查询操作审计日志。
+     * @param query 查询条件
+     * @return 日志分页结果
+     */
     @GetMapping("/page")
     @RequiresPermission("log:list")
     public R<PageResult<OperationLog>> page(OperationLogQuery query) {

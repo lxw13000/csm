@@ -26,10 +26,20 @@ public class RoleService extends ServiceImpl<RoleMapper, Role> {
         this.roleMenuMapper = roleMenuMapper;
     }
 
+    /**
+     * 本租户全部角色（按 id 升序）。
+     * @return 角色列表
+     */
     public List<Role> listAll() {
         return lambdaQuery().orderByAsc(Role::getId).list();
     }
 
+    /**
+     * 新增角色（编码查重 + 菜单授权）。
+     * @param dto 角色信息
+     * @return 新增的角色
+     * @throws BizException 角色编码已存在
+     */
     @Transactional(rollbackFor = Exception.class)
     public Role create(RoleSaveDTO dto) {
         if (lambdaQuery().eq(Role::getCode, dto.getCode()).count() > 0) {
@@ -44,6 +54,12 @@ public class RoleService extends ServiceImpl<RoleMapper, Role> {
         return role;
     }
 
+    /**
+     * 编辑角色（menuIds 非空时一并重设菜单授权）。
+     * @param id 角色 id
+     * @param dto 角色信息
+     * @return 更新后的角色
+     */
     @Transactional(rollbackFor = Exception.class)
     public Role update(Long id, RoleSaveDTO dto) {
         Role role = getOwned(id);
@@ -56,6 +72,10 @@ public class RoleService extends ServiceImpl<RoleMapper, Role> {
         return role;
     }
 
+    /**
+     * 删除角色并清除其菜单授权。
+     * @param id 角色 id
+     */
     @Transactional(rollbackFor = Exception.class)
     public void delete(Long id) {
         getOwned(id);
@@ -63,12 +83,22 @@ public class RoleService extends ServiceImpl<RoleMapper, Role> {
         roleMenuMapper.delete(new LambdaQueryWrapper<RoleMenu>().eq(RoleMenu::getRoleId, id));
     }
 
+    /**
+     * 查询角色已授权的菜单 id。
+     * @param roleId 角色 id
+     * @return 菜单 id 列表
+     */
     public List<Long> menuIds(Long roleId) {
         getOwned(roleId);
         return roleMenuMapper.selectList(new LambdaQueryWrapper<RoleMenu>().eq(RoleMenu::getRoleId, roleId))
                 .stream().map(RoleMenu::getMenuId).toList();
     }
 
+    /**
+     * 重设角色的菜单授权（先清后插，全量覆盖）。
+     * @param roleId 角色 id
+     * @param menuIds 菜单 id 列表（null 表示清空授权）
+     */
     @Transactional(rollbackFor = Exception.class)
     public void assignMenus(Long roleId, List<Long> menuIds) {
         roleMenuMapper.delete(new LambdaQueryWrapper<RoleMenu>().eq(RoleMenu::getRoleId, roleId));
@@ -83,6 +113,7 @@ public class RoleService extends ServiceImpl<RoleMapper, Role> {
         }
     }
 
+    /** 取本租户内角色，不存在抛 404。 */
     private Role getOwned(Long id) {
         Role role = getById(id);
         if (role == null) {

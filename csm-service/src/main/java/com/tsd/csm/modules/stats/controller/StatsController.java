@@ -27,6 +27,12 @@ public class StatsController {
         this.statsService = statsService;
     }
 
+    /**
+     * 工单统计（本租户，可选日期范围）。
+     * @param startDate 起始日期（含），可空
+     * @param endDate 截止日期（含），可空
+     * @return 工单统计结果
+     */
     @GetMapping("/ticket")
     @RequiresPermission("stats:ticket")
     public R<TicketStatsVO> ticket(
@@ -35,6 +41,13 @@ public class StatsController {
         return R.ok(statsService.ticketStats(startDate, endDate));
     }
 
+    /**
+     * 客服工作情况统计。
+     * @param startDate 起始日期（含），可空
+     * @param endDate 截止日期（含），可空
+     * @param agentId 指定客服账号 id，可空表示全部
+     * @return 客服统计列表
+     */
     @GetMapping("/agent")
     @RequiresPermission("stats:agent")
     public R<List<AgentStatVO>> agent(

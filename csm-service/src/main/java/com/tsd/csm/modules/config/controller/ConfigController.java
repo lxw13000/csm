@@ -26,12 +26,21 @@ public class ConfigController {
         this.tenantConfigService = tenantConfigService;
     }
 
+    /**
+     * 查询本租户接入配置。
+     * @return 租户配置
+     */
     @GetMapping
     @RequiresPermission("config:view")
     public R<TenantConfig> current() {
         return R.ok(tenantConfigService.getCurrent());
     }
 
+    /**
+     * 更新本租户接入配置。
+     * @param dto 配置项
+     * @return 更新后的配置
+     */
     @PutMapping
     @RequiresPermission("config:view")
     @AuditLog(module = "config", action = "update", targetType = "tenant_config")

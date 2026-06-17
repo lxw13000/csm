@@ -38,6 +38,9 @@ public class AutoCloseJob {
         this.ticketService = ticketService;
     }
 
+    /**
+     * 每分钟扫描一次：跨租户取未完结且已有消息的工单，按各租户的超时阈值完结过期会话。
+     */
     @Scheduled(fixedDelay = 60_000L, initialDelay = 60_000L)
     public void run() {
         List<Ticket> active = TenantContext.executeIgnore(() -> ticketMapper.selectList(

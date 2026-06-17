@@ -23,6 +23,11 @@ public class H5AccessController {
         this.authService = authService;
     }
 
+    /**
+     * H5 接入：app_id + 一次性 token 换取会话凭证。
+     * @param dto 接入入参
+     * @return 会话凭证与当前用户信息
+     */
     @PostMapping("/access")
     public R<AccessVO> access(@RequestBody @Valid AccessDTO dto) {
         return R.ok(authService.access(dto));

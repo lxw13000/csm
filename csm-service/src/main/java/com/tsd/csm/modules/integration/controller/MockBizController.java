@@ -18,6 +18,11 @@ import java.util.Map;
 @RequestMapping("/api/h5/mock")
 public class MockBizController {
 
+    /**
+     * 模拟「身份换取」：直接以传入 token 作为 userId 返回。
+     * @param body 含 token 的请求体
+     * @return 含 userId 的响应
+     */
     @PostMapping("/identity")
     public Map<String, Object> identity(@RequestBody Map<String, Object> body) {
         Object token = body.get("token");
@@ -26,6 +31,11 @@ public class MockBizController {
         return resp;
     }
 
+    /**
+     * 模拟「查用户信息」：按 userId 返回一组演示用户字段。
+     * @param body 含 userId 的请求体
+     * @return 演示用户信息
+     */
     @PostMapping("/user-info")
     public Map<String, Object> userInfo(@RequestBody Map<String, Object> body) {
         String userId = String.valueOf(body.getOrDefault("userId", "user_1001"));

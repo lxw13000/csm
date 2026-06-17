@@ -90,6 +90,7 @@ public class WsHandler extends TextWebSocketHandler {
         }
     }
 
+    /** 处理聊天消息：用户走智能问答编排、客服走回复编排，处理后回送 ack。 */
     private void handleChat(WebSocketSession session, LoginUser user, WsMessage in) {
         SendMessageDTO dto = new SendMessageDTO();
         dto.setContent(in.getContent());
@@ -104,6 +105,7 @@ public class WsHandler extends TextWebSocketHandler {
         }
     }
 
+    /** 处理「正在输入」状态：转发给对端（用户↔客服）。 */
     private void handleTyping(LoginUser user, WsMessage in) {
         Ticket ticket = ticketService.getById(in.getTicketId());
         if (ticket == null) {
@@ -122,6 +124,7 @@ public class WsHandler extends TextWebSocketHandler {
         }
     }
 
+    /** 处理已读回执：推进本方已读水位并通知对端。 */
     private void handleRead(LoginUser user, WsMessage in) {
         Ticket ticket = ticketService.getById(in.getTicketId());
         if (ticket == null || in.getSeq() == null) {
@@ -142,6 +145,7 @@ public class WsHandler extends TextWebSocketHandler {
         }
     }
 
+    /** 回送消息送达确认（ack，携带服务端分配的 seq）。 */
     private void ack(WebSocketSession session, String clientMsgId, Long seq, Long ticketId) {
         WsMessage ack = new WsMessage();
         ack.setType(WsChannelType.ACK.getType());
@@ -151,6 +155,7 @@ public class WsHandler extends TextWebSocketHandler {
         sendDirect(session, ack);
     }
 
+    /** 直接向当前连接发送消息（不经 Redis 分发，用于 ack/pong 等本连接应答）。 */
     private void sendDirect(WebSocketSession session, WsMessage message) {
         try {
             WsSessionRegistry.sendSafe(session, objectMapper.writeValueAsString(message));
@@ -159,10 +164,12 @@ public class WsHandler extends TextWebSocketHandler {
         }
     }
 
+    /** 从会话属性取握手阶段写入的登录主体。 */
     private LoginUser loginUser(WebSocketSession session) {
         return (LoginUser) session.getAttributes().get(WsHandshakeInterceptor.ATTR_LOGIN_USER);
     }
 
+    /** 按身份（用户/客服）生成会话注册表的索引 key。 */
     private String registryKey(LoginUser user) {
         return user.isCustomer()
                 ? WsSessionRegistry.userKey(user.getAppId(), user.getUserId())

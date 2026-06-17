@@ -35,6 +35,12 @@ public class StatsService extends ServiceImpl<AgentWorkDailyMapper, AgentWorkDai
         this.accountMapper = accountMapper;
     }
 
+    /**
+     * 工单维度统计：按创建时间范围实时统计各状态量、完结率与平均处理时长。
+     * @param start 起始日期（含），可空
+     * @param end 截止日期（含），可空
+     * @return 工单统计结果
+     */
     public TicketStatsVO ticketStats(LocalDate start, LocalDate end) {
         LocalDateTime from = start == null ? null : start.atStartOfDay();
         LocalDateTime to = end == null ? null : end.plusDays(1).atStartOfDay();
@@ -51,6 +57,13 @@ public class StatsService extends ServiceImpl<AgentWorkDailyMapper, AgentWorkDai
         return vo;
     }
 
+    /**
+     * 客服维度统计：按日期范围聚合日汇总表，平均响应耗时按回复数加权。
+     * @param start 起始日期（含），可空
+     * @param end 截止日期（含），可空
+     * @param agentId 指定客服账号 id，可空表示全部
+     * @return 客服统计列表
+     */
     public List<AgentStatVO> agentStats(LocalDate start, LocalDate end, Long agentId) {
         List<AgentWorkDaily> rows = lambdaQuery()
                 .ge(start != null, AgentWorkDaily::getStatDate, start)
@@ -83,6 +96,7 @@ public class StatsService extends ServiceImpl<AgentWorkDailyMapper, AgentWorkDai
         return result;
     }
 
+    /** 统计创建时间范围内指定状态的工单数（status 为空则统计全部）。 */
     private long countByStatus(LocalDateTime from, LocalDateTime to, Integer status) {
         return ticketMapper.selectCount(new LambdaQueryWrapper<Ticket>()
                 .ge(from != null, Ticket::getCreatedAt, from)
@@ -90,6 +104,7 @@ public class StatsService extends ServiceImpl<AgentWorkDailyMapper, AgentWorkDai
                 .eq(status != null, Ticket::getStatus, status));
     }
 
+    /** 完结工单的平均处理时长（秒，closedAt − createdAt 均值）。 */
     private long avgHandleSeconds(LocalDateTime from, LocalDateTime to) {
         List<Ticket> closed = ticketMapper.selectList(new LambdaQueryWrapper<Ticket>()
                 .ge(from != null, Ticket::getCreatedAt, from)
@@ -106,10 +121,12 @@ public class StatsService extends ServiceImpl<AgentWorkDailyMapper, AgentWorkDai
         return sum / closed.size();
     }
 
+    /** null 视为 0。 */
     private int nz(Integer value) {
         return value == null ? 0 : value;
     }
 
+    /** 四舍五入保留 4 位小数。 */
     private double round(double value) {
         return Math.round(value * 10000d) / 10000d;
     }

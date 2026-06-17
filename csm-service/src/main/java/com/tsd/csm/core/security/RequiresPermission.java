@@ -13,5 +13,6 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 public @interface RequiresPermission {
 
+    /** 所需权限点编码。 */
     String value();
 }

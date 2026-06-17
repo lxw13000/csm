@@ -14,6 +14,10 @@ import java.util.Map;
 @RequestMapping("/api/common")
 public class CommonController {
 
+    /**
+     * 健康检查。
+     * @return 服务存活标识
+     */
     @GetMapping("/health")
     public R<Map<String, Object>> health() {
         return R.ok(Map.of("status", "UP", "service", "csm-service"));

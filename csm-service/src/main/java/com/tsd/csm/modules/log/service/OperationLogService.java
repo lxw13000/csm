@@ -40,6 +40,11 @@ public class OperationLogService extends ServiceImpl<OperationLogMapper, Operati
         save(entry);
     }
 
+    /**
+     * 分页查询操作日志。
+     * @param query 查询条件
+     * @return 日志分页结果
+     */
     public PageResult<OperationLog> page(OperationLogQuery query) {
         Page<OperationLog> page = lambdaQuery()
                 .eq(StringUtils.hasText(query.getModule()), OperationLog::getModule, query.getModule())
@@ -50,6 +55,7 @@ public class OperationLogService extends ServiceImpl<OperationLogMapper, Operati
         return PageResult.of(page);
     }
 
+    /** 取当前 HTTP 请求（非 Web 上下文返回 null）。 */
     private HttpServletRequest currentRequest() {
         if (RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attributes) {
             return attributes.getRequest();
@@ -57,6 +63,7 @@ public class OperationLogService extends ServiceImpl<OperationLogMapper, Operati
         return null;
     }
 
+    /** 解析客户端 IP（优先取 X-Forwarded-For 首段）。 */
     private String clientIp(HttpServletRequest request) {
         String forwarded = request.getHeader("X-Forwarded-For");
         if (StringUtils.hasText(forwarded)) {

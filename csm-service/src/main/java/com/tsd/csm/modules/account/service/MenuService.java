@@ -75,6 +75,7 @@ public class MenuService extends ServiceImpl<MenuMapper, Menu> {
                 .stream().map(RoleMenu::getMenuId).collect(Collectors.toSet());
     }
 
+    /** 将扁平菜单列表组装为树；父节点缺失的节点挂到根，避免丢失。 */
     private List<MenuVO> buildTree(List<Menu> menus) {
         List<MenuVO> nodes = menus.stream().map(this::toVO).toList();
         List<MenuVO> roots = new ArrayList<>();

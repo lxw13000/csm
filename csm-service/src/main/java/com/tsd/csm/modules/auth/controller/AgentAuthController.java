@@ -29,16 +29,28 @@ public class AgentAuthController {
         this.authService = authService;
     }
 
+    /**
+     * 客服登录（仅 account_type=3）。
+     * @param dto 登录信息
+     * @return 登录结果（含 token、菜单、权限码）
+     */
     @PostMapping("/login")
     public R<LoginVO> login(@RequestBody @Valid LoginDTO dto) {
         return R.ok(authService.login(dto, AGENT_TYPES));
     }
 
+    /**
+     * 当前登录客服信息。
+     * @return 用户信息
+     */
     @GetMapping("/me")
     public R<LoginVO> me() {
         return R.ok(authService.currentUserInfo());
     }
 
+    /**
+     * 登出（JWT 无状态，实际由客户端丢弃 token）。
+     */
     @PostMapping("/logout")
     public R<Void> logout() {
         return R.ok();

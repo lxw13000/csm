@@ -39,6 +39,7 @@ public class WsPushService implements RealtimeNotifier {
         publish(new WsPushEnvelope("agent", appId, String.valueOf(accountId), type, payload));
     }
 
+    /** 将推送信封序列化后发布到 Redis 频道（投递交由各节点订阅者完成）。 */
     private void publish(WsPushEnvelope envelope) {
         try {
             String json = objectMapper.writeValueAsString(envelope);

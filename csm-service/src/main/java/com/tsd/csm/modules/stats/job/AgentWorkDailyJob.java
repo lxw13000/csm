@@ -44,6 +44,7 @@ public class AgentWorkDailyJob {
         this.agentWorkDailyMapper = agentWorkDailyMapper;
     }
 
+    /** 每日 0:10 触发，汇总前一日数据。 */
     @Scheduled(cron = "0 10 0 * * ?")
     public void aggregateYesterday() {
         aggregate(LocalDate.now().minusDays(1));
@@ -65,6 +66,7 @@ public class AgentWorkDailyJob {
         log.info("客服工作日汇总完成 date={} agents={}", date, agents.size());
     }
 
+    /** 聚合单个客服某日的接待量/回复数/平均响应/强制关闭数（全为 0 则不落库）。 */
     private void aggregateOne(String appId, Long agentId, LocalDate date,
                               LocalDateTime dayStart, LocalDateTime dayEnd) {
         long ticketCount = ticketMapper.selectCount(new LambdaQueryWrapper<Ticket>()
@@ -108,6 +110,7 @@ public class AgentWorkDailyJob {
         }
     }
 
+    /** 计算回复消息的平均响应耗时（秒，忽略无耗时记录）。 */
     private int averageResponseCost(List<Message> replies) {
         int sum = 0;
         int count = 0;

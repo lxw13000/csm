@@ -17,6 +17,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+/**
+ * 租户接入服务实现：租户增删改查与新租户默认配置预置。
+ */
 @Service
 public class TenantServiceImpl extends ServiceImpl<TenantMapper, Tenant> implements TenantService {
 
@@ -103,6 +106,7 @@ public class TenantServiceImpl extends ServiceImpl<TenantMapper, Tenant> impleme
         return PageResult.of(page);
     }
 
+    /** 将入参拷贝到租户实体（status 缺省为启用）。 */
     private void apply(Tenant tenant, TenantSaveDTO dto) {
         tenant.setAppId(dto.getAppId());
         tenant.setAppSecret(dto.getAppSecret());

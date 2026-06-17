@@ -23,6 +23,7 @@ public class LogAspect {
         this.operationLogService = operationLogService;
     }
 
+    /** {@link AuditLog} 标注方法正常返回后记录操作日志；记录失败仅告警，不影响主流程。 */
     @AfterReturning(pointcut = "@annotation(auditLog)")
     public void afterReturning(AuditLog auditLog) {
         try {

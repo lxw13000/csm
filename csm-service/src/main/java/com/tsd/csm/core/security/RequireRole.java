@@ -14,5 +14,6 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 public @interface RequireRole {
 
+    /** 允许访问的账号类型（满足其一即放行）。 */
     AccountType[] value();
 }

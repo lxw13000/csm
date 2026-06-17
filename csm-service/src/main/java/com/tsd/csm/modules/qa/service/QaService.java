@@ -37,6 +37,11 @@ public class QaService extends ServiceImpl<QaMapper, Qa> {
         this.qaKeywordMapper = qaKeywordMapper;
     }
 
+    /**
+     * 分页查询本租户 QA。
+     * @param query 查询条件
+     * @return QA 分页结果
+     */
     public PageResult<QaVO> page(QaQuery query) {
         Page<Qa> page = lambdaQuery()
                 .eq(query.getStatus() != null, Qa::getStatus, query.getStatus())
@@ -46,10 +51,20 @@ public class QaService extends ServiceImpl<QaMapper, Qa> {
         return PageResult.of(page, this::toVO);
     }
 
+    /**
+     * QA 详情（含关联关键词）。
+     * @param id QA id
+     * @return QA 详情
+     */
     public QaVO detail(Long id) {
         return toVO(getOwned(id));
     }
 
+    /**
+     * 新增 QA（记录创建人并写入关键词）。
+     * @param dto QA 信息
+     * @return 新增的 QA VO
+     */
     @Transactional(rollbackFor = Exception.class)
     public QaVO create(QaSaveDTO dto) {
         Qa qa = new Qa();
@@ -65,6 +80,12 @@ public class QaService extends ServiceImpl<QaMapper, Qa> {
         return toVO(qa);
     }
 
+    /**
+     * 编辑 QA（keywords 非空时一并重设关键词）。
+     * @param id QA id
+     * @param dto QA 信息
+     * @return 更新后的 QA VO
+     */
     @Transactional(rollbackFor = Exception.class)
     public QaVO update(Long id, QaSaveDTO dto) {
         Qa qa = getOwned(id);
@@ -80,6 +101,10 @@ public class QaService extends ServiceImpl<QaMapper, Qa> {
         return toVO(qa);
     }
 
+    /**
+     * 删除 QA 并清除其关键词。
+     * @param id QA id
+     */
     @Transactional(rollbackFor = Exception.class)
     public void delete(Long id) {
         getOwned(id);
@@ -87,6 +112,11 @@ public class QaService extends ServiceImpl<QaMapper, Qa> {
         qaKeywordMapper.delete(new LambdaQueryWrapper<QaKeyword>().eq(QaKeyword::getQaId, id));
     }
 
+    /**
+     * 启用/停用 QA。
+     * @param id QA id
+     * @param status 状态：1 启用 / 0 停用
+     */
     public void changeStatus(Long id, Integer status) {
         Qa qa = getOwned(id);
         qa.setStatus(status);
@@ -124,6 +154,7 @@ public class QaService extends ServiceImpl<QaMapper, Qa> {
                 .one();
     }
 
+    /** 全量替换 QA 的关键词（先清后插，跳过空白）。 */
     private void replaceKeywords(Long qaId, List<String> keywords) {
         qaKeywordMapper.delete(new LambdaQueryWrapper<QaKeyword>().eq(QaKeyword::getQaId, qaId));
         if (keywords == null) {
@@ -140,6 +171,7 @@ public class QaService extends ServiceImpl<QaMapper, Qa> {
         }
     }
 
+    /** 取本租户内 QA，不存在抛 404。 */
     private Qa getOwned(Long id) {
         Qa qa = getById(id);
         if (qa == null) {
@@ -148,6 +180,7 @@ public class QaService extends ServiceImpl<QaMapper, Qa> {
         return qa;
     }
 
+    /** QA 实体转展示 VO（附带关联关键词）。 */
     private QaVO toVO(Qa qa) {
         QaVO vo = new QaVO();
         vo.setId(qa.getId());

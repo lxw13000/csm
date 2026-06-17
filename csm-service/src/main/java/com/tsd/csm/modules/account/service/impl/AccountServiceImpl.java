@@ -24,6 +24,9 @@ import org.springframework.util.StringUtils;
 
 import java.util.List;
 
+/**
+ * 内部账号服务实现：账号增删改查、密码与状态维护、角色绑定。
+ */
 @Service
 public class AccountServiceImpl extends ServiceImpl<AccountMapper, Account> implements AccountService {
 
@@ -145,6 +148,7 @@ public class AccountServiceImpl extends ServiceImpl<AccountMapper, Account> impl
         return account;
     }
 
+    /** 批量绑定角色到账号。 */
     private void bindRoles(Long accountId, List<Long> roleIds) {
         if (roleIds == null || roleIds.isEmpty()) {
             return;
