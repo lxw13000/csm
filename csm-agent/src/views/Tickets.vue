@@ -1,0 +1,144 @@
+<script setup lang="ts">
+import { onMounted, onUnmounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { showConfirmDialog, showFailToast, showSuccessToast } from 'vant'
+import * as api from '@/api'
+import { useAuthStore } from '@/stores/auth'
+import { initRealtime, onWs } from '@/utils/realtime'
+import { notifyNew, requestNotifyPermission, stopTitleFlash } from '@/utils/notify'
+import { TOKEN_KEY } from '@/api/request'
+import type { TicketVO, WsInbound } from '@/types/api'
+
+const router = useRouter()
+const auth = useAuthStore()
+const tickets = ref<TicketVO[]>([])
+const online = ref(false)
+const load = ref(0)
+const loading = ref(false)
+let unsub: (() => void) | null = null
+
+onMounted(async () => {
+  if (!auth.user) {
+    try {
+      await auth.refreshMe()
+    } catch {
+      router.replace('/login')
+      return
+    }
+  }
+  requestNotifyPermission()
+  initRealtime(localStorage.getItem(TOKEN_KEY) || '')
+  unsub = onWs(handleWs)
+  await refreshStatus()
+  await loadList()
+})
+
+onUnmounted(() => unsub?.())
+
+function handleWs(msg: WsInbound) {
+  // 新工单分发 / 状态变更 / 新消息 → 刷新会话列表并提醒
+  if (['notification', 'ticket_status', 'chat'].includes(msg.type)) {
+    loadList()
+    if (msg.type === 'notification') notifyNew('新工单', '有新的工单待接待', true)
+    else if (msg.type === 'chat') notifyNew('新消息', '收到一条新消息', true)
+  }
+}
+
+async function refreshStatus() {
+  try {
+    const st = await api.getStatus()
+    online.value = st.onlineStatus === 1
+    load.value = st.currentLoad || 0
+  } catch {
+    /* ignore */
+  }
+}
+
+async function loadList() {
+  loading.value = true
+  try {
+    tickets.value = await api.ticketList()
+  } finally {
+    loading.value = false
+  }
+}
+
+async function toggleOnline(val: boolean) {
+  try {
+    const st = val ? await api.goOnline() : await api.goOffline()
+    online.value = st.onlineStatus === 1
+    load.value = st.currentLoad || 0
+    showSuccessToast(online.value ? '已上线接单' : '已下线')
+    if (online.value) loadList()
+  } catch {
+    online.value = !val
+    showFailToast('操作失败')
+  }
+}
+
+function openChat(t: TicketVO) {
+  stopTitleFlash()
+  router.push(`/chat/${t.id}`)
+}
+
+async function onLogout() {
+  await showConfirmDialog({ title: '提示', message: '确认退出登录？' })
+  try {
+    if (online.value) await api.goOffline()
+    await api.logout()
+  } catch {
+    /* ignore */
+  }
+  auth.logout()
+  router.replace('/login')
+}
+</script>
+
+<template>
+  <div class="page">
+    <van-nav-bar title="我的会话">
+      <template #right>
+        <span class="logout" @click="onLogout">退出</span>
+      </template>
+    </van-nav-bar>
+
+    <van-cell-group inset class="status">
+      <van-cell title="接单状态" :label="`当前处理中：${load} 单`">
+        <template #value>
+          <van-switch v-model="online" size="22px" @change="toggleOnline" />
+          <span class="state">{{ online ? '在线' : '离线' }}</span>
+        </template>
+      </van-cell>
+    </van-cell-group>
+
+    <van-pull-refresh v-model="loading" @refresh="loadList">
+      <div class="list">
+        <van-empty v-if="!tickets.length" description="暂无进行中的会话" />
+        <van-cell v-for="t in tickets" :key="t.id" is-link center @click="openChat(t)">
+          <template #icon>
+            <van-image round width="42" height="42" :src="t.avatar" class="avatar">
+              <template #error><div class="ph">{{ (t.nickname || t.userId || '?').charAt(0) }}</div></template>
+            </van-image>
+          </template>
+          <template #title>
+            <span class="name">{{ t.nickname || t.userId }}</span>
+            <van-badge v-if="t.unreadCount" :content="t.unreadCount" class="badge" />
+          </template>
+          <template #label>工单 #{{ t.id }} · {{ t.lastMsgAt || t.createdAt || '' }}</template>
+        </van-cell>
+      </div>
+    </van-pull-refresh>
+  </div>
+</template>
+
+<style scoped>
+.page { min-height: 100%; }
+.logout { color: #fff; }
+.status { margin-top: 10px; }
+.state { margin-left: 8px; color: #646566; font-size: 13px; vertical-align: middle; }
+.list { padding-bottom: 20px; }
+.avatar { margin-right: 12px; }
+.ph { width: 42px; height: 42px; border-radius: 50%; background: #c8c9cc; color: #fff; display: flex; align-items: center; justify-content: center; }
+.name { font-weight: 600; }
+.badge { margin-left: 8px; }
+</style>
