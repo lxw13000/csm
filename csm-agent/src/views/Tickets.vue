@@ -179,7 +179,7 @@ async function onLogout() {
 
 <style scoped>
 .page { min-height: 100%; }
-.logout { color: #fff; }
+.logout { color: #6d6d6d; }
 .status { margin-top: 10px; }
 .state { margin-left: 8px; color: #646566; font-size: 13px; vertical-align: middle; }
 .list { padding-bottom: 20px; }
