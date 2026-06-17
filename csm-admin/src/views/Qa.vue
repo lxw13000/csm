@@ -13,7 +13,6 @@ const dialogVisible = ref(false)
 const editId = ref<number | null>(null)
 const formRef = ref<FormInstance>()
 const form = reactive<QaSaveDTO>({ question: '', answer: '', status: 1, keywords: [] })
-const keywordInput = ref('')
 
 const rules: FormRules = {
   question: [{ required: true, message: '请输入问题', trigger: 'blur' }],
@@ -41,7 +40,6 @@ function search() {
 function openCreate() {
   editId.value = null
   Object.assign(form, { question: '', answer: '', status: 1, keywords: [] })
-  keywordInput.value = ''
   dialogVisible.value = true
 }
 
@@ -49,18 +47,7 @@ async function openEdit(row: QaVO) {
   editId.value = row.id
   const detail = await api.qaGet(row.id)
   Object.assign(form, { question: detail.question, answer: detail.answer, status: detail.status, keywords: detail.keywords || [] })
-  keywordInput.value = ''
   dialogVisible.value = true
-}
-
-function addKeyword() {
-  const v = keywordInput.value.trim()
-  if (v && !form.keywords!.includes(v)) form.keywords!.push(v)
-  keywordInput.value = ''
-}
-
-function removeKeyword(k: string) {
-  form.keywords = form.keywords!.filter((x) => x !== k)
 }
 
 async function submit() {
@@ -133,11 +120,10 @@ async function remove(row: QaVO) {
         <el-form-item label="问题" prop="question"><el-input v-model="form.question" /></el-form-item>
         <el-form-item label="答案" prop="answer"><el-input v-model="form.answer" type="textarea" :rows="4" /></el-form-item>
         <el-form-item label="关键词">
-          <div class="kw-edit">
-            <el-tag v-for="k in form.keywords" :key="k" closable class="kw" @close="removeKeyword(k)">{{ k }}</el-tag>
-            <el-input v-model="keywordInput" size="small" style="width: 140px" placeholder="回车添加"
-              @keyup.enter="addKeyword" />
-          </div>
+          <el-select v-model="form.keywords" multiple filterable allow-create default-first-option
+            :reserve-keyword="false" style="width: 100%" placeholder="输入关键词后回车添加，可关联多个">
+            <el-option v-for="k in form.keywords" :key="k" :label="k" :value="k" />
+          </el-select>
         </el-form-item>
         <el-form-item label="状态">
           <el-switch v-model="form.status" :active-value="1" :inactive-value="0" />
@@ -155,5 +141,4 @@ async function remove(row: QaVO) {
 .toolbar { display: flex; justify-content: space-between; align-items: flex-start; }
 .pager { margin-top: 12px; justify-content: flex-end; }
 .kw { margin-right: 6px; }
-.kw-edit { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 </style>

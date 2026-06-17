@@ -42,8 +42,8 @@ public class StatsService extends ServiceImpl<AgentWorkDailyMapper, AgentWorkDai
      * @return 工单统计结果
      */
     public TicketStatsVO ticketStats(LocalDate start, LocalDate end) {
-        LocalDateTime from = start == null ? null : start.atStartOfDay();
-        LocalDateTime to = end == null ? null : end.plusDays(1).atStartOfDay();
+        LocalDateTime from = start == null ? LocalDate.now().atStartOfDay() : start.atStartOfDay();
+        LocalDateTime to = end == null ? LocalDate.now().plusDays(1).atStartOfDay() : end.plusDays(1).atStartOfDay();
 
         TicketStatsVO vo = new TicketStatsVO();
         vo.setTotal(countByStatus(from, to, null));

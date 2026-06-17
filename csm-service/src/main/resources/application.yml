@@ -24,7 +24,7 @@ spring:
   application:
     name: csm-service              # 应用名（日志 / 监控 / 链路标识）
   profiles:
-    active: ${SPRING_PROFILES_ACTIVE:test}   # 激活环境，默认 dev，可由环境变量覆盖
+    active: ${SPRING_PROFILES_ACTIVE:dev}   # 激活环境，默认 dev，可由环境变量覆盖
   lifecycle:
     timeout-per-shutdown-phase: 30s         # 优雅停机最长等待时间
 

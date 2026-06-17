@@ -63,7 +63,7 @@ public class WsSessionRegistry {
                 session.sendMessage(new TextMessage(text));
             }
         } catch (IOException e) {
-            log.warn("WebSocket 发送失败 sessionId={}, err={}", session.getId(), e.getMessage());
+            log.error("WebSocket 发送失败 sessionId={}, err={}", session.getId(), e.getMessage());
         }
     }
 }
