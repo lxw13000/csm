@@ -32,7 +32,14 @@ mysql -h127.0.0.1 -uroot -pcsm123456 csm < csm-service/src/main/resources/db/sch
 mysql -h127.0.0.1 -uroot -pcsm123456 csm < csm-service/src/main/resources/db/data.sql
 ```
 
-平台超级管理员初始账号：`app_id=_platform_`，用户名 `admin`，密码 `admin123`。
+由后端启动类 `DataInitializer` 幂等创建的演示账号：
+
+| 入口 | app_id | 账号 | 密码 | 说明 |
+| --- | --- | --- | --- | --- |
+| 管理后台 | `_platform_` | `admin` | `admin123` | 平台超级管理员（跨租户） |
+| 管理后台 | `biz_demo` | `admin` | `admin123` | 演示租户管理员 |
+| 客服端 | `biz_demo` | `agent1` / `agent2` | `agent123` | 演示客服 |
+| 用户端 | `biz_demo` | — | — | 经 `?app_id=biz_demo&token=任意串` 接入（演示 mock 据 token 生成 user_id） |
 
 ### 3. 启动后端
 
@@ -41,7 +48,7 @@ cd csm-service
 mvn spring-boot:run
 ```
 
-默认端口 `8080`，上下文 `/`。健康检查：`GET http://localhost:8080/api/common/health`。
+默认端口 `8081`（见 `application.yml` 的 `server.port`），上下文 `/`。健康检查：`GET http://localhost:8081/api/common/health`。
 
 ### 4. 启动前端（任选其一）
 
@@ -51,7 +58,9 @@ cd csm-agent && pnpm i && pnpm dev   # 客服端 H5  http://localhost:5174
 cd csm-user  && pnpm i && pnpm dev   # 用户端 H5  http://localhost:5175
 ```
 
-各前端通过 Vite 代理将 `/api`、`/ws` 转发到后端 `8080`。
+各前端通过 Vite 代理将 `/api`、`/ws` 转发到后端 `8081`。
+
+> 未安装 pnpm 可改用 npm：`npm i && npm run dev`；生产构建 `npm run build`（含 `vue-tsc` 类型检查）。三个前端均为独立 Vite 工程，分别 `npm i`。
 
 ## API 路径约定
 
