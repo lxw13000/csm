@@ -20,8 +20,6 @@ const pendingCount = computed(() => tickets.value.filter((t) => t.status === 2).
 const sheet = reactive({ show: false, actions: [] as { name: string; agentId: number }[] })
 let transferTicketId = 0
 let unsub: (() => void) | null = null
-let pollTimer: number | undefined
-let onVisible: (() => void) | null = null
 
 onMounted(async () => {
   if (!auth.user) {
@@ -36,18 +34,12 @@ onMounted(async () => {
   initRealtime(localStorage.getItem(TOKEN_KEY) || '')
   unsub = onWs(handleWs)
   await refreshStatus()
+  // 进入时加载一次；之后由 WS 实时刷新（新工单/消息/状态变更，含断线重连的 __open），或下拉刷新
   await loadList()
-  // 兜底轮询：实时刷新主要靠 WS 提醒，这里仅低频(30s)兜底，避免漏单又不增加明显负载
-  pollTimer = window.setInterval(loadList, 30000)
-  // 切回页面/标签时立即刷新一次
-  onVisible = () => { if (!document.hidden) loadList() }
-  document.addEventListener('visibilitychange', onVisible)
 })
 
 onUnmounted(() => {
   unsub?.()
-  if (pollTimer) clearInterval(pollTimer)
-  if (onVisible) document.removeEventListener('visibilitychange', onVisible)
 })
 
 function handleWs(msg: WsInbound) {
