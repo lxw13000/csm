@@ -39,13 +39,13 @@ public class CustomerController {
     }
 
     /**
-     * 实时查询用户详情（优先业务系统，失败降级缓存）。
+     * 查询用户详情（读取缓存，昵称/头像随业务系统换取凭证同步）。
      * @param userId 业务系统用户 id
      * @return 用户详情
      */
     @GetMapping("/detail")
     @RequiresPermission("customer:list")
     public R<CustomerVO> detail(@RequestParam String userId) {
-        return R.ok(customerService.detailRealtime(userId));
+        return R.ok(customerService.detail(userId));
     }
 }

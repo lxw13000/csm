@@ -1,6 +1,6 @@
 import request from './request'
 import type {
-  AccessDTO, AccessVO, EvaluateDTO, MessageVO, SendMessageDTO, TicketVO, UploadVO, UserMessageResultVO
+  CredentialDTO, CredentialVO, EvaluateDTO, MessageVO, SendMessageDTO, TicketVO, UploadVO, UserMessageResultVO
 } from '@/types/api'
 
 function get<T>(url: string, params?: Record<string, unknown>): Promise<T> {
@@ -10,8 +10,8 @@ function post<T>(url: string, data?: unknown, params?: Record<string, unknown>):
   return request.post(url, data, { params }) as unknown as Promise<T>
 }
 
-/* 接入：token 换取会话凭证（公开接口） */
-export const access = (dto: AccessDTO) => post<AccessVO>('/h5/access', dto)
+/* 颁发通信凭证（公开接口）。正式环境由业务系统后端调用；此处仅供本地联调直接换取凭证。 */
+export const issueCredential = (dto: CredentialDTO) => post<CredentialVO>('/integration/credential', dto)
 
 /* 会话与消息 */
 export const currentTicket = () => get<TicketVO>('/h5/ticket/current')

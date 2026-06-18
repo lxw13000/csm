@@ -11,7 +11,7 @@ public class TenantSaveDTO {
     @NotBlank(message = "app_id 不能为空")
     private String appId;
 
-    /** 出站调用签名密钥。 */
+    /** 换取通信凭证的鉴权密钥。 */
     @NotBlank(message = "app_secret 不能为空")
     private String appSecret;
 
@@ -19,13 +19,8 @@ public class TenantSaveDTO {
     @NotBlank(message = "租户名称不能为空")
     private String name;
 
-    /** 业务系统①身份换取接口地址。 */
-    @NotBlank(message = "身份换取接口地址不能为空")
-    private String identityApi;
-
-    /** 业务系统②按 user_id 查用户信息接口地址。 */
-    @NotBlank(message = "用户信息查询接口地址不能为空")
-    private String userInfoApi;
+    /** 颁发给业务系统的通信凭证有效期（分钟），为空取默认 120。 */
+    private Integer credentialExpireMinutes;
 
     /** IP 白名单，逗号分隔，可空。 */
     private String ipWhitelist;
@@ -58,20 +53,12 @@ public class TenantSaveDTO {
         this.name = name;
     }
 
-    public String getIdentityApi() {
-        return identityApi;
+    public Integer getCredentialExpireMinutes() {
+        return credentialExpireMinutes;
     }
 
-    public void setIdentityApi(String identityApi) {
-        this.identityApi = identityApi;
-    }
-
-    public String getUserInfoApi() {
-        return userInfoApi;
-    }
-
-    public void setUserInfoApi(String userInfoApi) {
-        this.userInfoApi = userInfoApi;
+    public void setCredentialExpireMinutes(Integer credentialExpireMinutes) {
+        this.credentialExpireMinutes = credentialExpireMinutes;
     }
 
     public String getIpWhitelist() {

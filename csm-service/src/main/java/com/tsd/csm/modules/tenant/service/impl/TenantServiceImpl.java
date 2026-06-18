@@ -106,13 +106,13 @@ public class TenantServiceImpl extends ServiceImpl<TenantMapper, Tenant> impleme
         return PageResult.of(page);
     }
 
-    /** 将入参拷贝到租户实体（status 缺省为启用）。 */
+    /** 将入参拷贝到租户实体（status 缺省为启用，凭证有效期缺省 120 分钟）。 */
     private void apply(Tenant tenant, TenantSaveDTO dto) {
         tenant.setAppId(dto.getAppId());
         tenant.setAppSecret(dto.getAppSecret());
         tenant.setName(dto.getName());
-        tenant.setIdentityApi(dto.getIdentityApi());
-        tenant.setUserInfoApi(dto.getUserInfoApi());
+        tenant.setCredentialExpireMinutes(
+                dto.getCredentialExpireMinutes() == null ? 120 : dto.getCredentialExpireMinutes());
         tenant.setIpWhitelist(dto.getIpWhitelist());
         tenant.setStatus(dto.getStatus() == null ? 1 : dto.getStatus());
         tenant.setRemark(dto.getRemark());

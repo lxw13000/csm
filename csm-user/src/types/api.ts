@@ -6,9 +6,12 @@ export interface R<T> {
   data: T
 }
 
-export interface AccessDTO {
+export interface CredentialDTO {
   appId: string
-  token: string
+  appSecret: string
+  userId: string
+  nickname?: string
+  avatar?: string
 }
 
 export interface CustomerVO {
@@ -19,13 +22,13 @@ export interface CustomerVO {
   maskedPhone?: string
   registerTime?: string
   lastSyncAt?: string
-  latest?: boolean
 }
 
-export interface AccessVO {
-  sessionToken: string
+export interface CredentialVO {
+  credential: string
   appId: string
   userId: string
+  expireMinutes?: number
   customer?: CustomerVO
 }
 

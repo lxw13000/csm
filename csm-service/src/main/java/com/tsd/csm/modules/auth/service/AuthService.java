@@ -10,22 +10,15 @@ import com.tsd.csm.core.tenant.TenantContext;
 import com.tsd.csm.modules.account.domain.Account;
 import com.tsd.csm.modules.account.service.AccountService;
 import com.tsd.csm.modules.account.service.MenuService;
-import com.tsd.csm.modules.auth.domain.dto.AccessDTO;
 import com.tsd.csm.modules.auth.domain.dto.LoginDTO;
-import com.tsd.csm.modules.auth.domain.vo.AccessVO;
 import com.tsd.csm.modules.auth.domain.vo.LoginVO;
-import com.tsd.csm.modules.customer.domain.Customer;
-import com.tsd.csm.modules.customer.service.CustomerService;
-import com.tsd.csm.modules.integration.client.BizSystemClient;
-import com.tsd.csm.modules.tenant.domain.Tenant;
-import com.tsd.csm.modules.tenant.service.TenantService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.Set;
 
 /**
- * 认证服务：内部账号登录、当前用户信息、H5 用户接入（token 换取会话凭证）。
+ * 认证服务：内部账号登录、当前用户信息。
  */
 @Service
 public class AuthService {
@@ -35,21 +28,14 @@ public class AuthService {
     private final JwtUtil jwtUtil;
     private final PermissionLoader permissionLoader;
     private final MenuService menuService;
-    private final TenantService tenantService;
-    private final BizSystemClient bizSystemClient;
-    private final CustomerService customerService;
 
     public AuthService(AccountService accountService, PasswordEncoder passwordEncoder, JwtUtil jwtUtil,
-                       PermissionLoader permissionLoader, MenuService menuService, TenantService tenantService,
-                       BizSystemClient bizSystemClient, CustomerService customerService) {
+                       PermissionLoader permissionLoader, MenuService menuService) {
         this.accountService = accountService;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtil = jwtUtil;
         this.permissionLoader = permissionLoader;
         this.menuService = menuService;
-        this.tenantService = tenantService;
-        this.bizSystemClient = bizSystemClient;
-        this.customerService = customerService;
     }
 
     /**
@@ -79,22 +65,6 @@ public class AuthService {
     /** 当前登录账号信息（菜单 + 权限码），不重新下发 token。 */
     public LoginVO currentUserInfo() {
         return buildUserInfo(UserContext.required());
-    }
-
-    /** H5 用户接入：token 换取 user_id → 缓存基础信息 → 下发会话凭证。 */
-    public AccessVO access(AccessDTO dto) {
-        Tenant tenant = tenantService.getEnabledOrThrow(dto.getAppId());
-        String userId = bizSystemClient.exchangeToken(tenant, dto.getToken());
-        Customer customer = TenantContext.callWithAppId(tenant.getAppId(),
-                () -> customerService.ensureCached(tenant, userId));
-        String sessionToken = jwtUtil.generateSessionToken(tenant.getAppId(), userId);
-
-        AccessVO vo = new AccessVO();
-        vo.setSessionToken(sessionToken);
-        vo.setAppId(tenant.getAppId());
-        vo.setUserId(userId);
-        vo.setCustomer(customerService.toVO(customer, false));
-        return vo;
     }
 
     /** 组装登录/当前用户信息：按账号所属租户加载权限点与可见菜单树。 */

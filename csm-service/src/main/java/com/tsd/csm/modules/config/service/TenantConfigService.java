@@ -5,6 +5,7 @@ import com.tsd.csm.modules.config.domain.TenantConfig;
 import com.tsd.csm.modules.config.domain.dto.TenantConfigUpdateDTO;
 import com.tsd.csm.modules.config.mapper.TenantConfigMapper;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 /**
  * 租户级配置服务（每租户一行）。读写均按 {@code TenantContext.appId} 隔离。
@@ -13,7 +14,9 @@ import org.springframework.stereotype.Service;
 @Service
 public class TenantConfigService extends ServiceImpl<TenantConfigMapper, TenantConfig> {
 
-    /** 取当前租户配置；不存在则按默认值惰性创建。要求租户上下文已设置。 */
+    /**
+     * 取当前租户配置；不存在则按默认值惰性创建。要求租户上下文已设置。
+     */
     public TenantConfig getCurrent() {
         TenantConfig config = lambdaQuery().one();
         if (config == null) {
@@ -28,6 +31,7 @@ public class TenantConfigService extends ServiceImpl<TenantConfigMapper, TenantC
 
     /**
      * 更新当前租户配置（notifySound 为空则保留原值）。
+     *
      * @param dto 配置项
      * @return 更新后的配置
      */
@@ -38,7 +42,8 @@ public class TenantConfigService extends ServiceImpl<TenantConfigMapper, TenantC
         if (dto.getNotifySound() != null) {
             config.setNotifySound(dto.getNotifySound());
         }
-        config.setExt(dto.getExt());
+        // ext 为 JSON 列，空串不是合法 JSON，置 null 以免 MySQL 报 "The document is empty."
+        config.setExt(StringUtils.hasText(dto.getExt()) ? dto.getExt() : null);
         updateById(config);
         return config;
     }

@@ -107,8 +107,7 @@ export interface Tenant {
   appId: string
   appSecret: string
   name: string
-  identityApi: string
-  userInfoApi: string
+  credentialExpireMinutes: number
   ipWhitelist?: string
   status: number
   remark?: string
@@ -120,8 +119,7 @@ export interface TenantSaveDTO {
   appId: string
   appSecret: string
   name: string
-  identityApi: string
-  userInfoApi: string
+  credentialExpireMinutes?: number
   ipWhitelist?: string
   status?: number
   remark?: string

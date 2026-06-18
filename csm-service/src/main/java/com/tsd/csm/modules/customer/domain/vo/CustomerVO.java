@@ -3,7 +3,7 @@ package com.tsd.csm.modules.customer.domain.vo;
 import java.time.LocalDateTime;
 
 /**
- * C 端用户展示信息 VO。{@code latest=false} 表示业务系统接口不可用、返回的是缓存（可能非最新）。
+ * C 端用户展示信息 VO（昵称/头像随业务系统换取凭证同步缓存）。
  */
 public class CustomerVO {
 
@@ -21,8 +21,6 @@ public class CustomerVO {
     private LocalDateTime registerTime;
     /** 最近一次同步业务系统信息的时间。 */
     private LocalDateTime lastSyncAt;
-    /** 是否为业务系统实时数据；false 表示接口不可用、返回的是缓存（可能非最新）。 */
-    private boolean latest;
 
     public String getUserId() {
         return userId;
@@ -78,13 +76,5 @@ public class CustomerVO {
 
     public void setLastSyncAt(LocalDateTime lastSyncAt) {
         this.lastSyncAt = lastSyncAt;
-    }
-
-    public boolean isLatest() {
-        return latest;
-    }
-
-    public void setLatest(boolean latest) {
-        this.latest = latest;
     }
 }

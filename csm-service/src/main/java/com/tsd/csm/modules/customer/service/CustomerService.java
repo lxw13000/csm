@@ -3,82 +3,59 @@ package com.tsd.csm.modules.customer.service;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.tsd.csm.core.common.result.PageResult;
-import com.tsd.csm.core.tenant.TenantContext;
-import com.tsd.csm.core.util.MaskUtil;
 import com.tsd.csm.modules.customer.domain.Customer;
 import com.tsd.csm.modules.customer.domain.vo.CustomerVO;
 import com.tsd.csm.modules.customer.mapper.CustomerMapper;
-import com.tsd.csm.modules.integration.client.BizSystemClient;
-import com.tsd.csm.modules.integration.domain.CustomerInfo;
-import com.tsd.csm.modules.tenant.domain.Tenant;
-import com.tsd.csm.modules.tenant.service.TenantService;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 
 /**
- * C 端用户缓存服务：首次接入缓存 + 按需实时查询（呼应 xuqiu.md 2.5）。
+ * C 端用户缓存服务：业务系统换取通信凭证时同步昵称/头像（呼应 xuqiu.md 2.5）。
  */
 @Service
 public class CustomerService extends ServiceImpl<CustomerMapper, Customer> {
-
-    private static final DateTimeFormatter FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-
-    private final BizSystemClient bizClient;
-    private final TenantService tenantService;
-
-    public CustomerService(BizSystemClient bizClient, TenantService tenantService) {
-        this.bizClient = bizClient;
-        this.tenantService = tenantService;
-    }
 
     /** 取用户缓存记录（无则返回 null）。 */
     public Customer getCached(String userId) {
         return lambdaQuery().eq(Customer::getUserId, userId).one();
     }
 
-    /** 首次接入时缓存基础信息；已存在则返回缓存。要求 TenantContext.appId 已设置为该租户。 */
-    public Customer ensureCached(Tenant tenant, String userId) {
-        Customer existing = getCached(userId);
-        if (existing != null) {
-            return existing;
+    /**
+     * 业务系统换取凭证时同步缓存：按 user_id 插入或更新昵称/头像。
+     * 要求 TenantContext.appId 已设置为该租户。
+     * @param userId 业务系统用户 id
+     * @param nickname 昵称（可空，空则不覆盖）
+     * @param avatar 头像 URL（可空，空则不覆盖）
+     * @return 缓存后的用户记录
+     */
+    public Customer upsert(String userId, String nickname, String avatar) {
+        Customer c = getCached(userId);
+        if (c == null) {
+            c = new Customer();
+            c.setUserId(userId);
         }
-        CustomerInfo info = bizClient.queryUserInfo(tenant, userId);
-        Customer c = new Customer();
-        c.setUserId(userId);
-        applyInfo(c, info);
-        c.setLastSyncAt(info != null ? LocalDateTime.now() : null);
-        save(c);
+        if (StringUtils.hasText(nickname)) {
+            c.setNickname(nickname);
+        }
+        if (StringUtils.hasText(avatar)) {
+            c.setAvatar(avatar);
+        }
+        c.setLastSyncAt(LocalDateTime.now());
+        saveOrUpdate(c);
         return c;
     }
 
-    /** 实时查询用户详情：优先调业务系统刷新缓存；不可用则降级返回缓存并标记非最新。 */
-    public CustomerVO detailRealtime(String userId) {
-        String appId = TenantContext.getAppId();
-        Tenant tenant = tenantService.getByAppId(appId);
+    /** 用户详情：直接返回缓存（权威源为业务系统，昵称/头像随换取凭证同步）。 */
+    public CustomerVO detail(String userId) {
         Customer cached = getCached(userId);
-        CustomerInfo info = tenant == null ? null : bizClient.queryUserInfo(tenant, userId);
-
-        if (info != null) {
-            if (cached == null) {
-                cached = new Customer();
-                cached.setUserId(userId);
-            }
-            applyInfo(cached, info);
-            cached.setLastSyncAt(LocalDateTime.now());
-            saveOrUpdate(cached);
-            return toVO(cached, true);
-        }
-        // 降级：返回缓存
         if (cached == null) {
             CustomerVO vo = new CustomerVO();
             vo.setUserId(userId);
-            vo.setLatest(false);
             return vo;
         }
-        return toVO(cached, false);
+        return toVO(cached);
     }
 
     /**
@@ -96,28 +73,15 @@ public class CustomerService extends ServiceImpl<CustomerMapper, Customer> {
                         .or().like(Customer::getNickname, keyword))
                 .orderByDesc(Customer::getId)
                 .page(Page.of(current, size));
-        return PageResult.of(page, c -> toVO(c, false));
-    }
-
-    /** 将业务系统返回的用户信息写入缓存实体（手机号脱敏）。 */
-    private void applyInfo(Customer c, CustomerInfo info) {
-        if (info == null) {
-            return;
-        }
-        c.setNickname(info.getNickname());
-        c.setAvatar(info.getAvatar());
-        c.setUserLevel(info.getUserLevel());
-        c.setMaskedPhone(MaskUtil.maskPhone(info.getPhone()));
-        c.setRegisterTime(parse(info.getRegisterTime()));
+        return PageResult.of(page, this::toVO);
     }
 
     /**
      * 缓存实体转展示 VO。
      * @param c 用户缓存实体
-     * @param latest 是否为业务系统实时数据
      * @return 用户 VO
      */
-    public CustomerVO toVO(Customer c, boolean latest) {
+    public CustomerVO toVO(Customer c) {
         CustomerVO vo = new CustomerVO();
         vo.setUserId(c.getUserId());
         vo.setNickname(c.getNickname());
@@ -126,19 +90,6 @@ public class CustomerService extends ServiceImpl<CustomerMapper, Customer> {
         vo.setMaskedPhone(c.getMaskedPhone());
         vo.setRegisterTime(c.getRegisterTime());
         vo.setLastSyncAt(c.getLastSyncAt());
-        vo.setLatest(latest);
         return vo;
-    }
-
-    /** 解析 yyyy-MM-dd HH:mm:ss 时间字符串，空或非法返回 null。 */
-    private LocalDateTime parse(String s) {
-        if (!StringUtils.hasText(s)) {
-            return null;
-        }
-        try {
-            return LocalDateTime.parse(s, FMT);
-        } catch (Exception e) {
-            return null;
-        }
     }
 }

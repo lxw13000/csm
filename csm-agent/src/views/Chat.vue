@@ -256,6 +256,7 @@ async function openTransfer() {
 function onPickAgent(action: { name: string; agentId: number }) {
   transfer.toAgentId = action.agentId
   transfer.toAgentName = action.name
+  sheet.show = false // 选定后关闭客服列表，回到转接弹窗
 }
 
 async function doTransfer() {

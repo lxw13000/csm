@@ -15,15 +15,13 @@ const formRef = ref<FormInstance>()
 const form = reactive<TenantSaveDTO>(emptyForm())
 
 function emptyForm(): TenantSaveDTO {
-  return { appId: '', appSecret: '', name: '', identityApi: '', userInfoApi: '', ipWhitelist: '', status: 1, remark: '' }
+  return { appId: '', appSecret: '', name: '', credentialExpireMinutes: 120, ipWhitelist: '', status: 1, remark: '' }
 }
 
 const rules: FormRules = {
   appId: [{ required: true, message: '请输入 app_id', trigger: 'blur' }],
   appSecret: [{ required: true, message: '请输入 app_secret', trigger: 'blur' }],
-  name: [{ required: true, message: '请输入名称', trigger: 'blur' }],
-  identityApi: [{ required: true, message: '请输入身份换取接口地址', trigger: 'blur' }],
-  userInfoApi: [{ required: true, message: '请输入用户信息接口地址', trigger: 'blur' }]
+  name: [{ required: true, message: '请输入名称', trigger: 'blur' }]
 }
 
 onMounted(load)
@@ -53,8 +51,9 @@ function openCreate() {
 function openEdit(row: Tenant) {
   editId.value = row.id
   Object.assign(form, {
-    appId: row.appId, appSecret: row.appSecret, name: row.name, identityApi: row.identityApi,
-    userInfoApi: row.userInfoApi, ipWhitelist: row.ipWhitelist, status: row.status, remark: row.remark
+    appId: row.appId, appSecret: row.appSecret, name: row.name,
+    credentialExpireMinutes: row.credentialExpireMinutes, ipWhitelist: row.ipWhitelist,
+    status: row.status, remark: row.remark
   })
   dialogVisible.value = true
 }
@@ -101,8 +100,8 @@ async function toggleStatus(row: Tenant) {
     <el-table :data="rows" border size="small">
       <el-table-column prop="appId" label="app_id" width="140" />
       <el-table-column prop="name" label="名称" />
-      <el-table-column prop="identityApi" label="身份换取接口" show-overflow-tooltip />
-      <el-table-column prop="userInfoApi" label="用户信息接口" show-overflow-tooltip />
+      <el-table-column prop="appSecret" label="app_secret" show-overflow-tooltip />
+      <el-table-column prop="credentialExpireMinutes" label="凭证有效期(分钟)" width="130" />
       <el-table-column label="状态" width="90">
         <template #default="{ row }">
           <el-tag :type="row.status === 1 ? 'success' : 'info'">{{ row.status === 1 ? '启用' : '停用' }}</el-tag>
@@ -126,8 +125,10 @@ async function toggleStatus(row: Tenant) {
         <el-form-item label="app_id" prop="appId"><el-input v-model="form.appId" :disabled="!!editId" /></el-form-item>
         <el-form-item label="app_secret" prop="appSecret"><el-input v-model="form.appSecret" /></el-form-item>
         <el-form-item label="名称" prop="name"><el-input v-model="form.name" /></el-form-item>
-        <el-form-item label="身份换取接口" prop="identityApi"><el-input v-model="form.identityApi" /></el-form-item>
-        <el-form-item label="用户信息接口" prop="userInfoApi"><el-input v-model="form.userInfoApi" /></el-form-item>
+        <el-form-item label="凭证有效期">
+          <el-input-number v-model="form.credentialExpireMinutes" :min="1" :max="525600" />
+          <span class="unit">分钟</span>
+        </el-form-item>
         <el-form-item label="IP 白名单"><el-input v-model="form.ipWhitelist" placeholder="逗号分隔，可空" /></el-form-item>
         <el-form-item label="状态">
           <el-switch v-model="form.status" :active-value="1" :inactive-value="0" />
@@ -145,4 +146,5 @@ async function toggleStatus(row: Tenant) {
 <style scoped>
 .toolbar { display: flex; justify-content: space-between; align-items: flex-start; }
 .pager { margin-top: 12px; justify-content: flex-end; }
+.unit { margin-left: 8px; color: #909399; }
 </style>

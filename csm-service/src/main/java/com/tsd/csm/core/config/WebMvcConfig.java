@@ -8,7 +8,7 @@ import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 /**
- * MVC 配置：注册登录态拦截器，放行登录、token 换取、健康检查与演示 mock。
+ * MVC 配置：注册登录态拦截器，放行登录、颁发通信凭证、健康检查与静态资源。
  */
 @Configuration
 public class WebMvcConfig implements WebMvcConfigurer {
@@ -39,8 +39,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/api/common/**",
                         "/api/admin/auth/login",
                         "/api/agent/auth/login",
-                        "/api/h5/access",
-                        "/api/h5/mock/**"
+                        "/api/integration/credential"
                 );
     }
 }

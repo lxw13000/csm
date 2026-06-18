@@ -352,12 +352,16 @@ public class TicketService extends ServiceImpl<TicketMapper, Ticket> {
     }
 
     /**
-     * 用户当前工单（无则新建并进入智能问答）。
+     * 用户进入会话时的当前工单：返回最近一条工单（含已完结，便于展示历史记录），
+     * 仅当该用户从未创建过工单时才新建。完结后再次发送消息会另建新工单（见 handleUserMessage）。
      * @param userId C 端用户 id
      * @return 当前工单详情
      */
     public TicketVO currentForUser(String userId) {
-        Ticket ticket = getOrCreateActive(userId);
+        Ticket ticket = activeOrLast(userId);
+        if (ticket == null) {
+            ticket = getOrCreateActive(userId);
+        }
         return toVO(ticket, true, ReaderType.USER.getCode(), userId);
     }
 

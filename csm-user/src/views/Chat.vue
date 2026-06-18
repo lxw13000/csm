@@ -183,6 +183,7 @@ function sendText() {
 
 async function sendContent(content: string, contentType: number) {
   unlockAudio()
+  const prevTicketId = ticket.value?.id
   const clientMsgId = 'u-' + Date.now() + '-' + Math.floor(performance.now())
   const optimistic: MessageVO = {
     id: 0, ticketId: ticket.value?.id ?? 0, seq: tempSeq--, senderType: 1, contentType, content,
@@ -194,8 +195,15 @@ async function sendContent(content: string, contentType: number) {
   try {
     const result = await api.sendMessage({ content, contentType, clientMsgId })
     ticket.value = result.ticket
-    const i = messages.value.findIndex((x) => x._clientMsgId === clientMsgId)
-    if (i >= 0) messages.value[i] = result.message
+    if (result.ticket && result.ticket.id !== prevTicketId) {
+      // 上一工单已完结、再次发起：进入新工单，重置为本次消息
+      messages.value = result.message ? [result.message] : []
+      earliestSeq.value = messages.value.length ? messages.value[0].seq : null
+      noMore.value = true
+    } else {
+      const i = messages.value.findIndex((x) => x._clientMsgId === clientMsgId)
+      if (i >= 0) messages.value[i] = result.message
+    }
     if (result.botReply) {
       upsert(result.botReply)
       beep()

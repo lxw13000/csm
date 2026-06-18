@@ -1,11 +1,10 @@
 import { defineStore } from 'pinia'
-import * as api from '@/api'
-import type { AccessDTO, CustomerVO } from '@/types/api'
+import type { CredentialVO, CustomerVO } from '@/types/api'
 import { SESSION_KEY, TOKEN_KEY } from '@/api/request'
 
 interface SessionData {
-  appId: string
-  userId: string
+  appId?: string
+  userId?: string
   customer?: CustomerVO
 }
 
@@ -27,13 +26,16 @@ export const useSessionStore = defineStore('session', {
     nickname: (s): string => s.session?.customer?.nickname || s.session?.userId || '我'
   },
   actions: {
-    async access(dto: AccessDTO) {
-      const vo = await api.access(dto)
-      this.token = vo.sessionToken
-      this.session = { appId: vo.appId, userId: vo.userId, customer: vo.customer }
+    /** 业务系统已换好凭证：H5 直接拿凭证（如 URL 传入）建立会话。 */
+    setCredential(token: string, data?: SessionData) {
+      this.token = token
+      this.session = data ?? this.session ?? {}
       localStorage.setItem(TOKEN_KEY, this.token)
       localStorage.setItem(SESSION_KEY, JSON.stringify(this.session))
-      return vo
+    },
+    /** 用凭证颁发返回体落地会话（本地联调换取凭证后使用）。 */
+    useCredential(vo: CredentialVO) {
+      this.setCredential(vo.credential, { appId: vo.appId, userId: vo.userId, customer: vo.customer })
     },
     reset() {
       this.token = ''

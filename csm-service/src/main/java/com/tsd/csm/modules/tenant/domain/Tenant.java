@@ -12,14 +12,12 @@ public class Tenant extends TimedEntity {
 
     /** 租户标识，对接业务系统唯一标识。 */
     private String appId;
-    /** 出站调用签名密钥。 */
+    /** 换取通信凭证的鉴权密钥。 */
     private String appSecret;
     /** 租户/业务系统名称。 */
     private String name;
-    /** 业务系统①身份换取接口地址。 */
-    private String identityApi;
-    /** 业务系统②按 user_id 查用户信息接口地址。 */
-    private String userInfoApi;
+    /** 颁发给业务系统的通信凭证有效期（分钟）。 */
+    private Integer credentialExpireMinutes;
     /** IP 白名单，逗号分隔，可空。 */
     private String ipWhitelist;
     /** 接入状态：1 启用 / 0 停用。 */
@@ -51,20 +49,12 @@ public class Tenant extends TimedEntity {
         this.name = name;
     }
 
-    public String getIdentityApi() {
-        return identityApi;
+    public Integer getCredentialExpireMinutes() {
+        return credentialExpireMinutes;
     }
 
-    public void setIdentityApi(String identityApi) {
-        this.identityApi = identityApi;
-    }
-
-    public String getUserInfoApi() {
-        return userInfoApi;
-    }
-
-    public void setUserInfoApi(String userInfoApi) {
-        this.userInfoApi = userInfoApi;
+    public void setCredentialExpireMinutes(Integer credentialExpireMinutes) {
+        this.credentialExpireMinutes = credentialExpireMinutes;
     }
 
     public String getIpWhitelist() {

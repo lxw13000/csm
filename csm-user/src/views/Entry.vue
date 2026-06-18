@@ -2,6 +2,7 @@
 import { onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { showFailToast } from 'vant'
+import * as api from '@/api'
 import { useSessionStore } from '@/stores/session'
 import { unlockAudio } from '@/utils/notify'
 
@@ -11,43 +12,42 @@ const session = useSessionStore()
 
 const loading = ref(false)
 const manual = ref(false)
-const form = reactive({ appId: 'biz_demo', token: '' })
+// 本地联调用：直接用 app_id+app_secret+user_id 换取凭证（正式环境由业务系统后端完成）
+const form = reactive({ appId: 'biz_demo', appSecret: 'demo_secret_please_change', userId: '', nickname: '' })
 
 onMounted(async () => {
-  // 业务 App 通过 WebView URL 注入 app_id + token：?app_id=biz_demo&token=xxx
+  // 业务系统后端换好凭证后，由 WebView URL 注入：?app_id=biz_demo&credential=xxx
   const appId = (route.query.app_id || route.query.appId) as string | undefined
-  const token = route.query.token as string | undefined
-  if (session.isReady && !token) {
+  const credential = (route.query.credential || route.query.token) as string | undefined
+  if (credential) {
+    session.setCredential(credential, { appId })
+    unlockAudio()
     router.replace('/chat')
     return
   }
-  if (appId && token) {
-    await doAccess(appId, token)
-  } else {
-    manual.value = true
+  if (session.isReady) {
+    router.replace('/chat')
+    return
   }
+  manual.value = true
 })
 
-async function doAccess(appId: string, token: string) {
+async function onSubmit() {
+  if (!form.appId || !form.appSecret || !form.userId) {
+    showFailToast('请填写 app_id、app_secret 与 user_id')
+    return
+  }
   loading.value = true
   try {
-    await session.access({ appId, token })
+    const vo = await api.issueCredential({ ...form })
+    session.useCredential(vo)
     unlockAudio()
     router.replace('/chat')
   } catch {
-    manual.value = true
-    showFailToast('接入失败，请重试')
+    showFailToast('换取凭证失败，请重试')
   } finally {
     loading.value = false
   }
-}
-
-function onSubmit() {
-  if (!form.appId || !form.token) {
-    showFailToast('请填写 app_id 与 token')
-    return
-  }
-  doAccess(form.appId, form.token)
 }
 </script>
 
@@ -62,15 +62,17 @@ function onSubmit() {
       <van-form @submit="onSubmit">
         <van-cell-group inset>
           <van-field v-model="form.appId" label="业务系统" placeholder="app_id" required />
-          <van-field v-model="form.token" label="临时token" placeholder="业务 App 下发的一次性 token" required />
+          <van-field v-model="form.appSecret" label="密钥" placeholder="app_secret" required />
+          <van-field v-model="form.userId" label="用户ID" placeholder="业务系统 user_id" required />
+          <van-field v-model="form.nickname" label="昵称" placeholder="选填" />
         </van-cell-group>
         <div class="submit">
           <van-button round block type="primary" native-type="submit" :loading="loading">进入客服</van-button>
         </div>
       </van-form>
       <div class="tips">
-        正式环境由业务 App 通过 <code>?app_id=&token=</code> 自动注入；<br />
-        演示租户 <code>biz_demo</code> 的 mock 接口会按 token 生成 user_id。
+        正式环境由业务系统后端用 <code>app_id+app_secret</code> 换取凭证，<br />
+        再经 <code>?app_id=&credential=</code> 注入 H5；此表单仅用于本地联调。
       </div>
     </template>
   </div>

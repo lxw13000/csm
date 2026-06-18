@@ -20,13 +20,10 @@ public class JwtUtil {
     private final SecretKey key;
     /** 内部账号登录态有效期（毫秒）。 */
     private final long accountExpireMs;
-    /** H5 会话凭证有效期（毫秒）。 */
-    private final long sessionExpireMs;
 
     public JwtUtil(CsmProperties props) {
         this.key = Keys.hmacShaKeyFor(props.getJwt().getSecret().getBytes(StandardCharsets.UTF_8));
         this.accountExpireMs = props.getJwt().getExpireMinutes() * 60_000L;
-        this.sessionExpireMs = props.getSession().getExpireMinutes() * 60_000L;
     }
 
     /** 签发内部账号（PC/客服）登录态。 */
@@ -45,8 +42,8 @@ public class JwtUtil {
                 .compact();
     }
 
-    /** 签发 C 端 H5 会话凭证。 */
-    public String generateSessionToken(String appId, String userId) {
+    /** 签发 C 端 H5 通信凭证，有效期由调用方（租户配置）指定。 */
+    public String generateSessionToken(String appId, String userId, long expireMinutes) {
         Date now = new Date();
         return Jwts.builder()
                 .subject(userId)
@@ -54,7 +51,7 @@ public class JwtUtil {
                 .claim("userId", userId)
                 .claim("kind", "session")
                 .issuedAt(now)
-                .expiration(new Date(now.getTime() + sessionExpireMs))
+                .expiration(new Date(now.getTime() + expireMinutes * 60_000L))
                 .signWith(key)
                 .compact();
     }

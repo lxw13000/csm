@@ -106,6 +106,7 @@ async function openTransfer(t: TicketVO) {
 }
 
 async function onPickAgent(action: { name: string; agentId: number }) {
+  sheet.show = false // 选定后先关闭转交列表，再弹确认框
   try {
     await showConfirmDialog({ title: '转交工单', message: `确认将工单 #${transferTicketId} 转交给 ${action.name}？` })
   } catch {

@@ -13,7 +13,7 @@
 * **枚举**：用 `TINYINT` + 列 `COMMENT` 标注取值；关键状态/类型字段附 `CHECK` 约束（MySQL 8.0.16+ 强制生效）。
 * **扩展字段**：易变配置用 `JSON` 列（MySQL 8.0 原生 JSON）承载，避免频繁加列。
 * **软删除**：按需在表上加 `deleted TINYINT NOT NULL DEFAULT 0`（下方 DDL 默认未列，按治理需要启用）。
-* **敏感信息**：C 端用户手机号等仅以**脱敏**形式缓存（见 `csm_customer`），权威数据不落库，以业务系统接口为准（呼应 2.5）。
+* **敏感信息**：C 端用户昵称/头像在业务系统换取通信凭证时同步缓存（见 `csm_customer`）；其余字段（手机号等）为预留缓存列，权威数据不落库，以业务系统为准（呼应 2.5）。
 
 ---
 
@@ -21,7 +21,7 @@
 
 | # | 表名 | 中文名 | 所属域 | 隔离键 | 关键说明 |
 | --- | --- | --- | --- | --- | --- |
-| 1 | `csm_tenant` | 业务系统(租户) | 租户接入 | app_id(PK业务键) | app_id/app_secret/对接接口/状态 |
+| 1 | `csm_tenant` | 业务系统(租户) | 租户接入 | app_id(PK业务键) | app_id/app_secret/凭证有效期/状态 |
 | 2 | `csm_account` | 内部账号 | 账号权限 | app_id | PC后台+客服H5账号，type区分超管/租户管理员/客服 |
 | 3 | `csm_role` | 角色 | 账号权限 | app_id | RBAC 角色 |
 | 4 | `csm_account_role` | 账号-角色 | 账号权限 | app_id | 多对多 |
@@ -49,17 +49,16 @@
 #### csm_tenant 业务系统(租户)接入表
 ```sql
 CREATE TABLE csm_tenant (
-  id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
-  app_id        VARCHAR(64)   NOT NULL COMMENT '租户标识，对接业务系统唯一标识',
-  app_secret    VARCHAR(128)  NOT NULL COMMENT '出站调用签名密钥',
-  name          VARCHAR(128)  NOT NULL COMMENT '租户/业务系统名称',
-  identity_api  VARCHAR(512)  NOT NULL COMMENT '业务系统①身份换取接口地址',
-  user_info_api VARCHAR(512)  NOT NULL COMMENT '业务系统②按user_id查用户信息接口地址',
-  ip_whitelist  VARCHAR(1024) DEFAULT NULL COMMENT 'IP白名单，逗号分隔，可空',
-  status        TINYINT       NOT NULL DEFAULT 1 COMMENT '接入状态 1启用 0停用',
-  remark        VARCHAR(255)  DEFAULT NULL COMMENT '备注',
-  created_at    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-  updated_at    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  id                       BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
+  app_id                   VARCHAR(64)   NOT NULL COMMENT '租户标识，对接业务系统唯一标识',
+  app_secret               VARCHAR(128)  NOT NULL COMMENT '换取通信凭证的鉴权密钥',
+  name                     VARCHAR(128)  NOT NULL COMMENT '租户/业务系统名称',
+  credential_expire_minutes INT          NOT NULL DEFAULT 120 COMMENT '颁发给业务系统的通信凭证有效期(分钟)',
+  ip_whitelist             VARCHAR(1024) DEFAULT NULL COMMENT 'IP白名单，逗号分隔，可空',
+  status                   TINYINT       NOT NULL DEFAULT 1 COMMENT '接入状态 1启用 0停用',
+  remark                   VARCHAR(255)  DEFAULT NULL COMMENT '备注',
+  created_at               DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  updated_at               DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (id),
   UNIQUE KEY uk_app_id (app_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='业务系统(租户)接入表';
@@ -188,11 +187,11 @@ CREATE TABLE csm_customer (
   id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
   app_id        VARCHAR(64)  NOT NULL COMMENT '所属租户',
   user_id       VARCHAR(64)  NOT NULL COMMENT '业务系统用户id',
-  nickname      VARCHAR(128) DEFAULT NULL COMMENT '昵称(缓存)',
-  avatar        VARCHAR(512) DEFAULT NULL COMMENT '头像URL(缓存)',
-  user_level    VARCHAR(32)  DEFAULT NULL COMMENT '用户等级(缓存)',
-  masked_phone  VARCHAR(32)  DEFAULT NULL COMMENT '脱敏手机号(缓存)',
-  register_time DATETIME     DEFAULT NULL COMMENT '注册时间(缓存)',
+  nickname      VARCHAR(128) DEFAULT NULL COMMENT '昵称(换取凭证时同步缓存)',
+  avatar        VARCHAR(512) DEFAULT NULL COMMENT '头像URL(换取凭证时同步缓存)',
+  user_level    VARCHAR(32)  DEFAULT NULL COMMENT '用户等级(预留缓存)',
+  masked_phone  VARCHAR(32)  DEFAULT NULL COMMENT '脱敏手机号(预留缓存)',
+  register_time DATETIME     DEFAULT NULL COMMENT '注册时间(预留缓存)',
   last_sync_at  DATETIME     DEFAULT NULL COMMENT '最近一次同步业务系统信息的时间',
   created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '首次接入时间',
   updated_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
