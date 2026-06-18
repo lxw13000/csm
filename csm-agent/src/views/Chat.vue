@@ -25,6 +25,24 @@ const earliestId = ref<number | null>(null)
 const loadingMore = ref(false)
 const noMore = ref(false)
 const closed = computed(() => ticket.value?.status === 4)
+// 本次会话（当前处理工单）的状态文案，显示在聊天界面顶部
+const statusText = computed(() => {
+  switch (ticket.value?.status) {
+    case 1: return '智能问答'
+    case 2: return '待接入'
+    case 3: return '处理中'
+    case 4: return '已完结'
+    default: return ''
+  }
+})
+const statusTagType = computed(() => {
+  switch (ticket.value?.status) {
+    case 2: return 'warning'
+    case 3: return 'success'
+    case 4: return 'default'
+    default: return 'primary'
+  }
+})
 const listRef = ref<HTMLElement>()
 const imageInput = ref<HTMLInputElement>()
 const fileInput = ref<HTMLInputElement>()
@@ -306,6 +324,13 @@ function senderClass(m: MessageVO): string {
       </template>
     </van-nav-bar>
 
+    <!-- 本次会话状态条：显示当前处理工单的状态 -->
+    <div class="status-bar">
+      <span>本次会话</span>
+      <van-tag :type="statusTagType" round>{{ statusText }}</van-tag>
+      <span class="tid">工单 #{{ ticketId }}</span>
+    </div>
+
     <div ref="listRef" class="messages" @scroll="onScroll">
       <div v-if="loadingMore" class="more">加载中…</div>
       <div v-for="m in messages" :key="m._clientMsgId || m.id" class="row" :class="senderClass(m)">
@@ -360,6 +385,8 @@ function senderClass(m: MessageVO): string {
 .chat { display: flex; flex-direction: column; height: 100vh; }
 .act { color: #fff; margin-left: 12px; }
 .act.danger { color: #ffe1e1; }
+.status-bar { display: flex; align-items: center; gap: 8px; padding: 6px 12px; background: #fff; border-bottom: 1px solid #ebedf0; font-size: 13px; color: #646566; }
+.status-bar .tid { margin-left: auto; color: #969799; font-size: 12px; }
 .messages { flex: 1; overflow-y: auto; padding: 12px; background: #f7f8fa; }
 .more { text-align: center; color: #969799; font-size: 12px; padding: 6px 0; }
 .row { display: flex; flex-direction: column; margin-bottom: 12px; }

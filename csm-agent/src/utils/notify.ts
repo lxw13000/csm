@@ -13,18 +13,34 @@ export function unlockAudio() {
   }
 }
 
+/**
+ * 提示音：连续播放 3 声短促「叮」，比单声更易察觉。
+ * 用 AudioContext 音频时钟精确排程（不用 setTimeout，避免后台标签页被节流而丢音/错拍）；
+ * 每声用增益包络做淡入淡出，避免爆音，峰值音量较此前明显加大。
+ */
 export function beep() {
   try {
     if (!audioCtx) unlockAudio()
     if (!audioCtx) return
-    const osc = audioCtx.createOscillator()
-    const gain = audioCtx.createGain()
-    osc.connect(gain)
-    gain.connect(audioCtx.destination)
-    osc.frequency.value = 880
-    gain.gain.value = 0.08
-    osc.start()
-    setTimeout(() => osc.stop(), 160)
+    const beepCount = 3      // 连响次数
+    const tone = 880         // 频率(Hz)
+    const dur = 0.18         // 单声时长(秒)
+    const gap = 0.10         // 声音间隔(秒)
+    const peak = 0.3         // 峰值音量(0~1)
+    const start0 = audioCtx.currentTime
+    for (let i = 0; i < beepCount; i++) {
+      const osc = audioCtx.createOscillator()
+      const gain = audioCtx.createGain()
+      osc.connect(gain)
+      gain.connect(audioCtx.destination)
+      osc.frequency.value = tone
+      const t = start0 + i * (dur + gap)
+      gain.gain.setValueAtTime(0.0001, t)
+      gain.gain.exponentialRampToValueAtTime(peak, t + 0.02)
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + dur)
+      osc.start(t)
+      osc.stop(t + dur)
+    }
   } catch {
     /* ignore */
   }

@@ -18,6 +18,8 @@ const loading = ref(false)
 const sheet = reactive({ show: false, actions: [] as { name: string; agentId: number }[] })
 let transferTicketId = 0
 let unsub: (() => void) | null = null
+let pollTimer: number | undefined
+let onVisible: (() => void) | null = null
 
 onMounted(async () => {
   if (!auth.user) {
@@ -33,9 +35,18 @@ onMounted(async () => {
   unsub = onWs(handleWs)
   await refreshStatus()
   await loadList()
+  // 兜底轮询：除 WS 实时提醒外，定时刷新「待我处理」列表，避免依赖 WS 导致不及时
+  pollTimer = window.setInterval(loadList, 10000)
+  // 切回页面/标签时立即刷新一次
+  onVisible = () => { if (!document.hidden) loadList() }
+  document.addEventListener('visibilitychange', onVisible)
 })
 
-onUnmounted(() => unsub?.())
+onUnmounted(() => {
+  unsub?.()
+  if (pollTimer) clearInterval(pollTimer)
+  if (onVisible) document.removeEventListener('visibilitychange', onVisible)
+})
 
 function handleWs(msg: WsInbound) {
   // 新工单分发 / 状态变更 / 新消息 → 即时刷新「待我处理」列表并提醒
