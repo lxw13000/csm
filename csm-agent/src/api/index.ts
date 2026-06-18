@@ -25,11 +25,11 @@ export const ticketDetail = (id: number) => get<TicketVO>(`/agent/ticket/${id}`)
 export const acceptTicket = (id: number) => post<TicketVO>(`/agent/ticket/${id}/accept`)
 /** 可转接的本租户客服列表。 */
 export const transferTargets = () => get<AccountBrief[]>('/agent/ticket/transfer-targets')
-export const ticketMessages = (id: number, afterSeq?: number) =>
-  get<MessageVO[]>(`/agent/ticket/${id}/messages`, afterSeq != null ? { afterSeq } : undefined)
-/** 历史消息分页：取 beforeSeq 之前的最近 limit 条（beforeSeq 为空取最新 limit 条）。 */
-export const ticketMessagesBefore = (id: number, beforeSeq?: number, limit = 20) =>
-  get<MessageVO[]>(`/agent/ticket/${id}/messages`, beforeSeq != null ? { beforeSeq, limit } : { limit })
+export const ticketMessages = (id: number, afterId?: number) =>
+  get<MessageVO[]>(`/agent/ticket/${id}/messages`, afterId != null ? { afterId } : undefined)
+/** 历史分页：取 beforeId 之前的最近 limit 条（beforeId 为空取最新 limit 条）。按工单所属用户的全量历史。 */
+export const ticketMessagesBefore = (id: number, beforeId?: number, limit = 20) =>
+  get<MessageVO[]>(`/agent/ticket/${id}/messages`, beforeId != null ? { beforeId, limit } : { limit })
 export const reply = (id: number, dto: SendMessageDTO) => post<MessageVO>(`/agent/ticket/${id}/reply`, dto)
 export const transfer = (id: number, dto: TransferDTO) => post<unknown>(`/agent/ticket/${id}/transfer`, dto)
 export const closeTicket = (id: number) => post<unknown>(`/agent/ticket/${id}/close`)

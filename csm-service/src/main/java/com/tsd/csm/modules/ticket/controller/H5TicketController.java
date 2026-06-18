@@ -45,25 +45,21 @@ public class H5TicketController {
     }
 
     /**
-     * 工单聊天记录。
-     * @param ticketId 工单 id
-     * @param afterSeq 增量游标（取其后的消息，用于断线增量），可空
-     * @param beforeSeq 向上翻页游标（取其前的更早历史），可空
-     * @param limit 返回条数上限（配合 beforeSeq 分页加载，默认 10），可空
+     * 当前用户的聊天历史（跨工单，按 app_id + user_id 时间排序，不再按单个工单）。
+     * @param afterId 增量游标（取 id 更大的消息，用于断线增量），可空
+     * @param beforeId 向上翻页游标（取 id 更小的更早历史），可空
+     * @param limit 返回条数上限（配合 beforeId 分页加载，默认 10），可空
      * @return 消息列表
      */
     @GetMapping("/ticket/messages")
-    public R<List<MessageVO>> messages(@RequestParam Long ticketId,
-                                       @RequestParam(required = false) Long afterSeq,
-                                       @RequestParam(required = false) Long beforeSeq,
+    public R<List<MessageVO>> messages(@RequestParam(required = false) Long afterId,
+                                       @RequestParam(required = false) Long beforeId,
                                        @RequestParam(required = false) Integer limit) {
-        if (afterSeq != null) {
-            return R.ok(ticketService.messages(ticketId, afterSeq));
+        String userId = currentUserId();
+        if (afterId != null) {
+            return R.ok(ticketService.userMessages(userId, afterId));
         }
-        if (beforeSeq != null || limit != null) {
-            return R.ok(ticketService.messagesBefore(ticketId, beforeSeq, limit));
-        }
-        return R.ok(ticketService.messages(ticketId, null));
+        return R.ok(ticketService.userMessagesBefore(userId, beforeId, limit));
     }
 
     /**

@@ -92,6 +92,7 @@ export interface UploadVO {
 export interface WsInbound {
   type: string
   ticketId?: number
+  id?: number
   clientMsgId?: string
   seq?: number
   data?: any

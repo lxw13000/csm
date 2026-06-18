@@ -15,11 +15,12 @@ export const issueCredential = (dto: CredentialDTO) => post<CredentialVO>('/inte
 
 /* 会话与消息 */
 export const currentTicket = () => get<TicketVO>('/h5/ticket/current')
-export const messages = (ticketId: number, afterSeq?: number) =>
-  get<MessageVO[]>('/h5/ticket/messages', afterSeq != null ? { ticketId, afterSeq } : { ticketId })
-/** 历史消息分页：取 beforeSeq 之前的最近 limit 条（beforeSeq 为空取最新 limit 条）。 */
-export const messagesBefore = (ticketId: number, beforeSeq?: number, limit = 10) =>
-  get<MessageVO[]>('/h5/ticket/messages', beforeSeq != null ? { ticketId, beforeSeq, limit } : { ticketId, limit })
+/** 增量拉取：取 id 大于 afterId 的当前用户消息（断线恢复）。 */
+export const messages = (afterId?: number) =>
+  get<MessageVO[]>('/h5/ticket/messages', afterId != null ? { afterId } : undefined)
+/** 历史分页：取 beforeId 之前的最近 limit 条当前用户消息（beforeId 为空取最新 limit 条）。 */
+export const messagesBefore = (beforeId?: number, limit = 10) =>
+  get<MessageVO[]>('/h5/ticket/messages', beforeId != null ? { beforeId, limit } : { limit })
 export const sendMessage = (dto: SendMessageDTO) => post<UserMessageResultVO>('/h5/message', dto)
 export const requestHuman = () => post<TicketVO>('/h5/transfer')
 export const resolve = () => post<TicketVO>('/h5/resolve')

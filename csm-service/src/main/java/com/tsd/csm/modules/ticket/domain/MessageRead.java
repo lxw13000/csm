@@ -8,10 +8,10 @@ import com.tsd.csm.core.mybatis.BaseEntity;
 import java.time.LocalDateTime;
 
 /**
- * 消息已读水位（read 回执）。对应 csm_message_read。
+ * 消息已读水位（read 回执）。对应 csm_ticket_message_read。
  * 高水位设计：每个 (工单, 阅读方) 仅一行，随阅读推进更新 last_read_seq。
  */
-@TableName("csm_message_read")
+@TableName("csm_ticket_message_read")
 public class MessageRead extends BaseEntity {
 
     /** 所属租户。 */
@@ -22,7 +22,7 @@ public class MessageRead extends BaseEntity {
     private Integer readerType;
     /** 阅读方标识（user_id 或客服 account_id）。 */
     private String readerId;
-    /** 已读到的最大消息序号（对应 csm_message.seq）。 */
+    /** 已读到的最大消息序号（对应 csm_ticket_message.seq）。 */
     private Long lastReadSeq;
     /** 最近已读时间。 */
     private LocalDateTime lastReadAt;

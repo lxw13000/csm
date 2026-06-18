@@ -78,25 +78,23 @@ public class AgentTicketController {
     }
 
     /**
-     * 工单聊天记录。
-     * @param id 工单 id
-     * @param afterSeq 增量游标（取其后的消息），可空
-     * @param beforeSeq 向上翻页游标（取其前的更早历史），可空
-     * @param limit 返回条数上限（配合 beforeSeq 分页加载），可空
+     * 工单所属用户的聊天历史（跨工单，按该用户全量历史时间排序）。
+     * @param id 工单 id（用于定位用户并做租户归属校验）
+     * @param afterId 增量游标（取 id 更大的消息），可空
+     * @param beforeId 向上翻页游标（取 id 更小的更早历史），可空
+     * @param limit 返回条数上限（配合 beforeId 分页加载），可空
      * @return 消息列表
      */
     @GetMapping("/{id}/messages")
     public R<List<MessageVO>> messages(@PathVariable Long id,
-                                       @RequestParam(required = false) Long afterSeq,
-                                       @RequestParam(required = false) Long beforeSeq,
+                                       @RequestParam(required = false) Long afterId,
+                                       @RequestParam(required = false) Long beforeId,
                                        @RequestParam(required = false) Integer limit) {
-        if (afterSeq != null) {
-            return R.ok(ticketService.messages(id, afterSeq));
+        String userId = ticketService.ownerUserId(id);
+        if (afterId != null) {
+            return R.ok(ticketService.userMessages(userId, afterId));
         }
-        if (beforeSeq != null || limit != null) {
-            return R.ok(ticketService.messagesBefore(id, beforeSeq, limit));
-        }
-        return R.ok(ticketService.messages(id, null));
+        return R.ok(ticketService.userMessagesBefore(userId, beforeId, limit));
     }
 
     /**

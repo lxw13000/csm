@@ -10,6 +10,8 @@ public class WsMessage {
     private String type;
     /** 工单 id。 */
     private Long ticketId;
+    /** 服务端分配的消息主键 id（ack 回传，供前端去重/排序）。 */
+    private Long id;
     /** 客户端生成的唯一 id，用于去重与 ack 关联。 */
     private String clientMsgId;
     /** 会话内递增序号。 */
@@ -46,6 +48,14 @@ public class WsMessage {
 
     public void setTicketId(Long ticketId) {
         this.ticketId = ticketId;
+    }
+
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
     }
 
     public String getClientMsgId() {

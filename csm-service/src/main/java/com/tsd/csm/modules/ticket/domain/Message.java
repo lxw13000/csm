@@ -8,19 +8,21 @@ import com.tsd.csm.core.mybatis.BaseEntity;
 import java.time.LocalDateTime;
 
 /**
- * 会话消息（毫秒时间精度）。对应 csm_message。
+ * 工单会话消息（毫秒时间精度）。对应 csm_ticket_message。
  * response_cost 由服务端落库时按「本条客服消息时间 − 上一条用户消息时间」计算。
  */
-@TableName("csm_message")
+@TableName("csm_ticket_message")
 public class Message extends BaseEntity {
 
     /** 所属租户。 */
     private String appId;
     /** 工单 id。 */
     private Long ticketId;
+    /** 所属 C 端用户（业务系统 user_id），无论发送方是谁均记录，便于按人查历史。 */
+    private String userId;
     /** 客户端生成唯一 id，用于去重（4.5）。 */
     private String clientMsgId;
-    /** 会话内递增序号，用于排序与断线增量恢复。 */
+    /** 会话内递增序号，用于工单内排序与已读水位。 */
     private Long seq;
     /** 发送方：1 用户 / 2 客服 / 3 系统/机器人。 */
     private Integer senderType;
@@ -51,6 +53,14 @@ public class Message extends BaseEntity {
 
     public void setTicketId(Long ticketId) {
         this.ticketId = ticketId;
+    }
+
+    public String getUserId() {
+        return userId;
+    }
+
+    public void setUserId(String userId) {
+        this.userId = userId;
     }
 
     public String getClientMsgId() {

@@ -88,7 +88,7 @@ public class TicketService extends ServiceImpl<TicketMapper, Ticket> {
     @Transactional(rollbackFor = Exception.class)
     public UserMessageResultVO handleUserMessage(String userId, SendMessageDTO dto) {
         Ticket ticket = getOrCreateActive(userId);
-        Message userMessage = messageService.saveMessage(ticket.getId(), SenderType.USER.getCode(), userId,
+        Message userMessage = messageService.saveMessage(ticket.getId(), userId, SenderType.USER.getCode(), userId,
                 dto.getContentType(), dto.getContent(), dto.getClientMsgId());
 
         UserMessageResultVO result = new UserMessageResultVO();
@@ -103,7 +103,7 @@ public class TicketService extends ServiceImpl<TicketMapper, Ticket> {
         } else if (status == TicketStatus.QA.getCode()) {
             Qa qa = qaService.matchBest(dto.getContent());
             if (qa != null) {
-                Message bot = messageService.saveMessage(ticket.getId(), SenderType.SYSTEM.getCode(), null,
+                Message bot = messageService.saveMessage(ticket.getId(), userId, SenderType.SYSTEM.getCode(), null,
                         1, qa.getAnswer(), null);
                 result.setBotReply(messageService.toVO(bot));
                 notifier.toUser(ticket.getAppId(), userId, WsChannelType.CHAT.getType(), messageService.toVO(bot));
@@ -136,7 +136,7 @@ public class TicketService extends ServiceImpl<TicketMapper, Ticket> {
         if (ticket.getStatus() == TicketStatus.CLOSED.getCode()) {
             throw new BizException("工单已完结，无法回复");
         }
-        Message message = messageService.saveMessage(ticketId, SenderType.AGENT.getCode(),
+        Message message = messageService.saveMessage(ticketId, ticket.getUserId(), SenderType.AGENT.getCode(),
                 String.valueOf(agentId), dto.getContentType(), dto.getContent(), dto.getClientMsgId());
         notifier.toUser(ticket.getAppId(), ticket.getUserId(),
                 WsChannelType.CHAT.getType(), messageService.toVO(message));
@@ -268,7 +268,7 @@ public class TicketService extends ServiceImpl<TicketMapper, Ticket> {
     }
 
     /**
-     * 工单消息列表。
+     * 单个工单消息列表（管理端查看某工单聊天记录）。
      * @param ticketId 工单 id
      * @param afterSeq 增量游标，可空
      * @return 消息 VO 列表
@@ -279,16 +279,30 @@ public class TicketService extends ServiceImpl<TicketMapper, Ticket> {
     }
 
     /**
-     * 工单最近 limit 条消息（初次加载取最新、向上滚动加载更早历史）。
-     * @param ticketId 工单 id
-     * @param beforeSeq 向上翻页游标：仅取 seq 小于它的消息，null 表示取最新
-     * @param limit 返回条数上限，null 默认 10
-     * @return 按 seq 升序的消息 VO 列表
+     * 某 C 端用户的全量历史消息（跨工单，按时间升序），用于实时聊天断线增量恢复。
+     * @param userId 业务系统用户 id
+     * @param afterId 增量游标：仅取 id 大于它的消息，可空
+     * @return 消息 VO 列表
      */
-    public List<MessageVO> messagesBefore(Long ticketId, Long beforeSeq, Integer limit) {
-        getOwned(ticketId);
+    public List<MessageVO> userMessages(String userId, Long afterId) {
+        return messageService.userHistory(userId, afterId).stream().map(messageService::toVO).toList();
+    }
+
+    /**
+     * 某 C 端用户最近 limit 条历史消息（跨工单，初次加载取最新、向上滚动加载更早历史）。
+     * @param userId 业务系统用户 id
+     * @param beforeId 向上翻页游标：仅取 id 小于它的消息，null 表示取最新
+     * @param limit 返回条数上限，null 默认 10
+     * @return 按 id 升序的消息 VO 列表
+     */
+    public List<MessageVO> userMessagesBefore(String userId, Long beforeId, Integer limit) {
         int size = (limit == null || limit <= 0) ? 10 : limit;
-        return messageService.historyBefore(ticketId, beforeSeq, size).stream().map(messageService::toVO).toList();
+        return messageService.userHistoryBefore(userId, beforeId, size).stream().map(messageService::toVO).toList();
+    }
+
+    /** 取工单所属 C 端用户 id（含租户归属校验），供客服端按人查历史。 */
+    public String ownerUserId(Long ticketId) {
+        return getOwned(ticketId).getUserId();
     }
 
     /**

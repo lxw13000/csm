@@ -21,7 +21,7 @@ const uploading = ref(false)
 const peerTyping = ref(false)
 const peerReadSeq = ref(0)
 const PAGE = 10
-const earliestSeq = ref<number | null>(null)
+const earliestId = ref<number | null>(null)
 const loadingMore = ref(false)
 const noMore = ref(false)
 const listRef = ref<HTMLElement>()
@@ -63,15 +63,13 @@ onUnmounted(() => {
 async function loadAll() {
   try {
     ticket.value = await api.currentTicket()
-    if (ticket.value) {
-      // 默认加载最近 PAGE(10) 条历史
-      const list = await api.messagesBefore(ticket.value.id, undefined, PAGE)
-      messages.value = list
-      noMore.value = list.length < PAGE
-      earliestSeq.value = list.length ? list[0].seq : null
-      scrollToBottom()
-      reportRead()
-    }
+    // 历史按当前用户（app_id+user_id）跨工单加载最近 PAGE(10) 条
+    const list = await api.messagesBefore(undefined, PAGE)
+    messages.value = list
+    noMore.value = list.length < PAGE
+    earliestId.value = list.length ? list[0].id : null
+    scrollToBottom()
+    reportRead()
   } catch {
     /* ignore */
   }
@@ -79,18 +77,18 @@ async function loadAll() {
 
 /** 向上滚动加载更早历史（保持滚动位置）。 */
 async function loadMore() {
-  if (!ticket.value || loadingMore.value || noMore.value || earliestSeq.value == null) return
+  if (loadingMore.value || noMore.value || earliestId.value == null) return
   loadingMore.value = true
   const el = listRef.value
   const prevH = el ? el.scrollHeight : 0
   try {
-    const older = await api.messagesBefore(ticket.value.id, earliestSeq.value, PAGE)
+    const older = await api.messagesBefore(earliestId.value, PAGE)
     if (older.length < PAGE) noMore.value = true
-    const seen = new Set(messages.value.map((m) => m.seq))
-    const fresh = older.filter((m) => !seen.has(m.seq))
+    const seen = new Set(messages.value.map((m) => m.id))
+    const fresh = older.filter((m) => !seen.has(m.id))
     if (fresh.length) {
       messages.value = [...fresh, ...messages.value]
-      earliestSeq.value = fresh[0].seq
+      earliestId.value = fresh[0].id
       nextTick(() => {
         if (el) el.scrollTop = el.scrollHeight - prevH
       })
@@ -107,13 +105,13 @@ function onScroll() {
   if (el && el.scrollTop < 40) loadMore()
 }
 
-function maxRealSeq(): number {
-  return messages.value.reduce((m, x) => (!x._pending && x.seq > m ? x.seq : m), 0)
+function maxRealId(): number {
+  return messages.value.reduce((m, x) => (!x._pending && x.id > m ? x.id : m), 0)
 }
 
 function upsert(m: MessageVO) {
-  if (m.seq != null) {
-    const i = messages.value.findIndex((x) => x.seq === m.seq)
+  if (m.id) {
+    const i = messages.value.findIndex((x) => x.id === m.id)
     if (i >= 0) {
       messages.value[i] = m
       return
@@ -124,8 +122,9 @@ function upsert(m: MessageVO) {
 
 function handleWs(msg: WsInbound) {
   if (msg.type === '__open') {
-    if (ticket.value) {
-      api.messages(ticket.value.id, maxRealSeq()).then((list) => {
+    const after = maxRealId()
+    if (after > 0) {
+      api.messages(after).then((list) => {
         list.forEach(upsert)
         scrollToBottom()
       })
@@ -135,7 +134,6 @@ function handleWs(msg: WsInbound) {
   const data = msg.data || {}
   if (msg.type === 'chat') {
     const m = data as MessageVO
-    if (ticket.value && m.ticketId !== ticket.value.id) return
     upsert(m)
     if (m.senderType !== 1) beep()
     scrollToBottom()
@@ -160,13 +158,17 @@ function showPeerTyping() {
 }
 
 function reportRead() {
-  const seq = maxRealSeq()
-  if (seq <= 0 || !ticket.value) return
+  if (!ticket.value) return
+  const tid = ticket.value.id
+  // 已读水位按工单维护：仅上报当前工单内的最大 seq
+  const seq = messages.value.reduce(
+    (m, x) => (!x._pending && x.ticketId === tid && x.seq > m ? x.seq : m), 0)
+  if (seq <= 0) return
   // 单通道上报，避免「WS read + REST markRead」并发首次插入造成唯一键冲突
   if (wsOpen()) {
-    wsSend({ type: 'read', ticketId: ticket.value.id, seq })
+    wsSend({ type: 'read', ticketId: tid, seq })
   } else {
-    api.markRead(ticket.value.id, seq).catch(() => undefined)
+    api.markRead(tid, seq).catch(() => undefined)
   }
 }
 
@@ -183,7 +185,6 @@ function sendText() {
 
 async function sendContent(content: string, contentType: number) {
   unlockAudio()
-  const prevTicketId = ticket.value?.id
   const clientMsgId = 'u-' + Date.now() + '-' + Math.floor(performance.now())
   const optimistic: MessageVO = {
     id: 0, ticketId: ticket.value?.id ?? 0, seq: tempSeq--, senderType: 1, contentType, content,
@@ -194,16 +195,11 @@ async function sendContent(content: string, contentType: number) {
   sending.value = true
   try {
     const result = await api.sendMessage({ content, contentType, clientMsgId })
+    // 历史按用户连续，完结后再发会另建工单但仍属同一用户，消息直接接续，无需重置
     ticket.value = result.ticket
-    if (result.ticket && result.ticket.id !== prevTicketId) {
-      // 上一工单已完结、再次发起：进入新工单，重置为本次消息
-      messages.value = result.message ? [result.message] : []
-      earliestSeq.value = messages.value.length ? messages.value[0].seq : null
-      noMore.value = true
-    } else {
-      const i = messages.value.findIndex((x) => x._clientMsgId === clientMsgId)
-      if (i >= 0) messages.value[i] = result.message
-    }
+    const i = messages.value.findIndex((x) => x._clientMsgId === clientMsgId)
+    if (i >= 0) messages.value[i] = result.message
+    if (earliestId.value == null && result.message) earliestId.value = result.message.id
     if (result.botReply) {
       upsert(result.botReply)
       beep()
@@ -292,7 +288,8 @@ function senderClass(m: MessageVO): string {
 }
 
 function readTag(m: MessageVO): boolean {
-  return m.senderType === 1 && !m._pending && peerReadSeq.value >= m.seq
+  // 已读水位按工单维护，仅对当前工单内自己的消息显示「已读」
+  return m.senderType === 1 && !m._pending && m.ticketId === ticket.value?.id && peerReadSeq.value >= m.seq
 }
 </script>
 
@@ -302,7 +299,7 @@ function readTag(m: MessageVO): boolean {
 
     <div ref="listRef" class="messages" @scroll="onScroll">
       <div v-if="loadingMore" class="more">加载中…</div>
-      <div v-for="m in messages" :key="m._clientMsgId || m.seq" class="row" :class="senderClass(m)">
+      <div v-for="m in messages" :key="m._clientMsgId || m.id" class="row" :class="senderClass(m)">
         <div class="bubble" :class="{ media: m.contentType !== 1 }">
           <template v-if="m.contentType === 2">
             <van-image :src="m.content" width="160" fit="cover" radius="6" @click="previewImage(m.content)" />

@@ -98,10 +98,11 @@ public class WsHandler extends TextWebSocketHandler {
         dto.setClientMsgId(in.getClientMsgId());
         if (user.isCustomer()) {
             UserMessageResultVO result = ticketService.handleUserMessage(user.getUserId(), dto);
-            ack(session, in.getClientMsgId(), result.getMessage().getSeq(), result.getMessage().getTicketId());
+            ack(session, in.getClientMsgId(), result.getMessage().getId(),
+                    result.getMessage().getSeq(), result.getMessage().getTicketId());
         } else {
             MessageVO message = ticketService.agentReply(in.getTicketId(), user.getAccountId(), dto);
-            ack(session, in.getClientMsgId(), message.getSeq(), in.getTicketId());
+            ack(session, in.getClientMsgId(), message.getId(), message.getSeq(), in.getTicketId());
         }
     }
 
@@ -145,11 +146,12 @@ public class WsHandler extends TextWebSocketHandler {
         }
     }
 
-    /** 回送消息送达确认（ack，携带服务端分配的 seq）。 */
-    private void ack(WebSocketSession session, String clientMsgId, Long seq, Long ticketId) {
+    /** 回送消息送达确认（ack，携带服务端分配的消息 id 与 seq）。 */
+    private void ack(WebSocketSession session, String clientMsgId, Long id, Long seq, Long ticketId) {
         WsMessage ack = new WsMessage();
         ack.setType(WsChannelType.ACK.getType());
         ack.setClientMsgId(clientMsgId);
+        ack.setId(id);
         ack.setSeq(seq);
         ack.setTicketId(ticketId);
         sendDirect(session, ack);

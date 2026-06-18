@@ -21,7 +21,7 @@ const uploading = ref(false)
 const peerTyping = ref(false)
 const peerReadSeq = ref(0)
 const PAGE = 20
-const earliestSeq = ref<number | null>(null)
+const earliestId = ref<number | null>(null)
 const loadingMore = ref(false)
 const noMore = ref(false)
 const closed = computed(() => ticket.value?.status === 4)
@@ -51,11 +51,11 @@ async function loadAll() {
   try {
     // 点开工单 = 接入人工（转接中 -> 处理中）
     ticket.value = await api.acceptTicket(ticketId)
-    // 默认加载最近 PAGE 条，向上滚动加载更早历史
+    // 按工单所属用户的全量历史加载最近 PAGE 条，向上滚动加载更早历史
     const list = await api.ticketMessagesBefore(ticketId, undefined, PAGE)
     messages.value = list
     noMore.value = list.length < PAGE
-    earliestSeq.value = list.length ? list[0].seq : null
+    earliestId.value = list.length ? list[0].id : null
     scrollToBottom()
     reportRead()
   } catch {
@@ -65,18 +65,18 @@ async function loadAll() {
 
 /** 向上滚动加载更早历史（保持滚动位置）。 */
 async function loadMore() {
-  if (loadingMore.value || noMore.value || earliestSeq.value == null) return
+  if (loadingMore.value || noMore.value || earliestId.value == null) return
   loadingMore.value = true
   const el = listRef.value
   const prevH = el ? el.scrollHeight : 0
   try {
-    const older = await api.ticketMessagesBefore(ticketId, earliestSeq.value, PAGE)
+    const older = await api.ticketMessagesBefore(ticketId, earliestId.value, PAGE)
     if (older.length < PAGE) noMore.value = true
-    const seen = new Set(messages.value.map((m) => m.seq))
-    const fresh = older.filter((m) => !seen.has(m.seq))
+    const seen = new Set(messages.value.map((m) => m.id))
+    const fresh = older.filter((m) => !seen.has(m.id))
     if (fresh.length) {
       messages.value = [...fresh, ...messages.value]
-      earliestSeq.value = fresh[0].seq
+      earliestId.value = fresh[0].id
       nextTick(() => {
         if (el) el.scrollTop = el.scrollHeight - prevH
       })
@@ -93,13 +93,13 @@ function onScroll() {
   if (el && el.scrollTop < 40) loadMore()
 }
 
-function maxRealSeq(): number {
-  return messages.value.reduce((m, x) => (!x._pending && x.seq > m ? x.seq : m), 0)
+function maxRealId(): number {
+  return messages.value.reduce((m, x) => (!x._pending && x.id > m ? x.id : m), 0)
 }
 
 function upsert(m: MessageVO) {
-  if (m.seq != null) {
-    const i = messages.value.findIndex((x) => x.seq === m.seq)
+  if (m.id) {
+    const i = messages.value.findIndex((x) => x.id === m.id)
     if (i >= 0) {
       messages.value[i] = m
       return
@@ -110,10 +110,13 @@ function upsert(m: MessageVO) {
 
 function handleWs(msg: WsInbound) {
   if (msg.type === '__open') {
-    api.ticketMessages(ticketId, maxRealSeq()).then((list) => {
-      list.forEach(upsert)
-      scrollToBottom()
-    })
+    const after = maxRealId()
+    if (after > 0) {
+      api.ticketMessages(ticketId, after).then((list) => {
+        list.forEach(upsert)
+        scrollToBottom()
+      })
+    }
     return
   }
   const data = msg.data || {}
@@ -135,8 +138,9 @@ function handleWs(msg: WsInbound) {
     }
   } else if (msg.type === 'ack') {
     const i = messages.value.findIndex((x) => x._clientMsgId && x._clientMsgId === msg.clientMsgId)
-    if (i >= 0 && msg.seq != null) {
-      messages.value[i].seq = msg.seq
+    if (i >= 0) {
+      if (msg.id != null) messages.value[i].id = msg.id
+      if (msg.seq != null) messages.value[i].seq = msg.seq
       messages.value[i]._pending = false
     }
   }
@@ -149,7 +153,9 @@ function showPeerTyping() {
 }
 
 function reportRead() {
-  const seq = maxRealSeq()
+  // 已读水位按工单维护：仅上报当前工单内的最大 seq
+  const seq = messages.value.reduce(
+    (m, x) => (!x._pending && x.ticketId === ticketId && x.seq > m ? x.seq : m), 0)
   if (seq <= 0) return
   // 单通道上报，避免「WS read + REST markRead」并发首次插入造成唯一键冲突
   if (wsOpen()) wsSend({ type: 'read', ticketId, seq })
@@ -234,7 +240,8 @@ function scrollToBottom() {
 }
 
 function readTag(m: MessageVO): boolean {
-  return m.senderType === 2 && !m._pending && peerReadSeq.value >= m.seq
+  // 已读水位按工单维护，仅对当前工单内自己的消息显示「已读」
+  return m.senderType === 2 && !m._pending && m.ticketId === ticketId && peerReadSeq.value >= m.seq
 }
 
 async function openTransfer() {
@@ -301,7 +308,7 @@ function senderClass(m: MessageVO): string {
 
     <div ref="listRef" class="messages" @scroll="onScroll">
       <div v-if="loadingMore" class="more">加载中…</div>
-      <div v-for="m in messages" :key="m._clientMsgId || m.seq" class="row" :class="senderClass(m)">
+      <div v-for="m in messages" :key="m._clientMsgId || m.id" class="row" :class="senderClass(m)">
         <div class="bubble" :class="{ media: m.contentType !== 1 }">
           <template v-if="m.contentType === 2">
             <van-image :src="m.content" width="160" fit="cover" radius="6" @click="previewImage(m.content)" />

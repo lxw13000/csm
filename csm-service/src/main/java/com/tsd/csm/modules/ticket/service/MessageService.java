@@ -45,7 +45,7 @@ public class MessageService extends ServiceImpl<MessageMapper, Message> {
      * 客服消息且上一条为用户消息时记录响应耗时，并刷新工单首条/最后消息时间。
      */
     @Transactional(rollbackFor = Exception.class)
-    public Message saveMessage(Long ticketId, int senderType, String senderId,
+    public Message saveMessage(Long ticketId, String userId, int senderType, String senderId,
                                Integer contentType, String content, String clientMsgId) {
         Message duplicate = findByClientMsgId(ticketId, clientMsgId);
         if (duplicate != null) {
@@ -55,6 +55,7 @@ public class MessageService extends ServiceImpl<MessageMapper, Message> {
         Message previous = latestMessage(ticketId);
         Message message = new Message();
         message.setTicketId(ticketId);
+        message.setUserId(userId);
         message.setClientMsgId(clientMsgId);
         message.setSeq(nextSeq(ticketId));
         message.setSenderType(senderType);
@@ -83,7 +84,7 @@ public class MessageService extends ServiceImpl<MessageMapper, Message> {
     }
 
     /**
-     * 拉取工单消息（按 seq 升序）。
+     * 拉取单个工单消息（按 seq 升序），供管理端查看某工单聊天记录。
      * @param ticketId 工单 id
      * @param afterSeq 增量游标：仅返回 seq 大于它的消息，null 表示全量
      * @return 消息列表
@@ -97,18 +98,33 @@ public class MessageService extends ServiceImpl<MessageMapper, Message> {
     }
 
     /**
-     * 拉取工单最近 limit 条消息（用于初次加载与向上滚动加载历史）。
-     * @param ticketId 工单 id
-     * @param beforeSeq 仅取 seq 小于它的消息（向上翻页游标），null 表示取最新
-     * @param limit 返回条数上限（1~100）
-     * @return 按 seq 升序排列的消息列表
+     * 拉取某 C 端用户的全量历史消息（跨工单，按主键 id 即时间升序），用于断线增量恢复。
+     * @param userId 业务系统用户 id
+     * @param afterId 增量游标：仅返回 id 大于它的消息，null 表示全量
+     * @return 按 id 升序的消息列表
      */
-    public List<Message> historyBefore(Long ticketId, Long beforeSeq, int limit) {
+    public List<Message> userHistory(String userId, Long afterId) {
+        return lambdaQuery()
+                .eq(Message::getUserId, userId)
+                .gt(afterId != null, Message::getId, afterId)
+                .orderByAsc(Message::getId)
+                .list();
+    }
+
+    /**
+     * 拉取某 C 端用户最近 limit 条历史消息（跨工单，按 id 倒序取再正序返回），
+     * 用于实时聊天初次加载与向上滚动加载更早历史。
+     * @param userId 业务系统用户 id
+     * @param beforeId 向上翻页游标：仅取 id 小于它的消息，null 表示取最新
+     * @param limit 返回条数上限（1~100）
+     * @return 按 id 升序排列的消息列表
+     */
+    public List<Message> userHistoryBefore(String userId, Long beforeId, int limit) {
         int size = Math.max(1, Math.min(limit, 100));
         List<Message> desc = lambdaQuery()
-                .eq(Message::getTicketId, ticketId)
-                .lt(beforeSeq != null, Message::getSeq, beforeSeq)
-                .orderByDesc(Message::getSeq)
+                .eq(Message::getUserId, userId)
+                .lt(beforeId != null, Message::getId, beforeId)
+                .orderByDesc(Message::getId)
                 .last("limit " + size)
                 .list();
         List<Message> ordered = new ArrayList<>(desc);

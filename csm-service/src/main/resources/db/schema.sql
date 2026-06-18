@@ -188,12 +188,13 @@ CREATE TABLE IF NOT EXISTS csm_ticket (
   CONSTRAINT chk_ticket_close  CHECK (close_type IN (1,2,3))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='工单表';
 
-CREATE TABLE IF NOT EXISTS csm_message (
+CREATE TABLE IF NOT EXISTS csm_ticket_message (
   id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
   app_id        VARCHAR(64)     NOT NULL COMMENT '所属租户',
   ticket_id     BIGINT UNSIGNED NOT NULL COMMENT '工单id',
+  user_id       VARCHAR(64)     NOT NULL COMMENT '所属C端用户(业务系统user_id)，无论发送方是谁均冗余记录，便于按人查历史',
   client_msg_id VARCHAR(64)     DEFAULT NULL COMMENT '客户端生成唯一id，用于去重(4.5)',
-  seq           BIGINT          NOT NULL DEFAULT 0 COMMENT '会话内递增序号，用于排序与断线增量',
+  seq           BIGINT          NOT NULL DEFAULT 0 COMMENT '会话内递增序号，用于工单内排序与已读水位',
   sender_type   TINYINT         NOT NULL COMMENT '发送方 1用户 2客服 3系统/机器人',
   sender_id     VARCHAR(64)     DEFAULT NULL COMMENT '发送方标识(user_id或客服account_id)',
   content_type  TINYINT         NOT NULL DEFAULT 1 COMMENT '内容类型 1文本 2图片 3其他多媒体',
@@ -203,9 +204,10 @@ CREATE TABLE IF NOT EXISTS csm_message (
   PRIMARY KEY (id),
   UNIQUE KEY uk_ticket_clientmsg (ticket_id, client_msg_id),
   KEY idx_app_ticket_seq (app_id, ticket_id, seq),
+  KEY idx_app_user_id (app_id, user_id, id),
   CONSTRAINT chk_sender_type  CHECK (sender_type IN (1,2,3)),
   CONSTRAINT chk_content_type CHECK (content_type IN (1,2,3))
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='会话消息表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='工单会话消息表';
 
 CREATE TABLE IF NOT EXISTS csm_ticket_transfer (
   id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
@@ -236,13 +238,13 @@ CREATE TABLE IF NOT EXISTS csm_ticket_evaluation (
 -- ---------------------------------------------------------------------------
 -- 3.7 运营与统计辅助表
 -- ---------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS csm_message_read (
+CREATE TABLE IF NOT EXISTS csm_ticket_message_read (
   id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键',
   app_id        VARCHAR(64)     NOT NULL COMMENT '所属租户',
   ticket_id     BIGINT UNSIGNED NOT NULL COMMENT '工单id',
   reader_type   TINYINT         NOT NULL COMMENT '阅读方 1用户 2客服',
   reader_id     VARCHAR(64)     NOT NULL COMMENT '阅读方标识(user_id或客服account_id)',
-  last_read_seq BIGINT          NOT NULL DEFAULT 0 COMMENT '已读到的最大消息序号(对应csm_message.seq)',
+  last_read_seq BIGINT          NOT NULL DEFAULT 0 COMMENT '已读到的最大消息序号(对应csm_ticket_message.seq)',
   last_read_at  DATETIME(3)     NOT NULL DEFAULT CURRENT_TIMESTAMP(3) COMMENT '最近已读时间',
   updated_at    DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (id),
