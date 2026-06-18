@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { showConfirmDialog, showFailToast, showSuccessToast } from 'vant'
 import * as api from '@/api'
@@ -13,8 +13,10 @@ const router = useRouter()
 const auth = useAuthStore()
 const tickets = ref<TicketVO[]>([])
 const online = ref(false)
-const load = ref(0)
 const loading = ref(false)
+// 处理中/待接入单数直接由列表派生，随列表刷新而更新（无需额外请求）
+const processingCount = computed(() => tickets.value.filter((t) => t.status === 3).length)
+const pendingCount = computed(() => tickets.value.filter((t) => t.status === 2).length)
 const sheet = reactive({ show: false, actions: [] as { name: string; agentId: number }[] })
 let transferTicketId = 0
 let unsub: (() => void) | null = null
@@ -35,8 +37,8 @@ onMounted(async () => {
   unsub = onWs(handleWs)
   await refreshStatus()
   await loadList()
-  // 兜底轮询：除 WS 实时提醒外，定时刷新「待我处理」列表，避免依赖 WS 导致不及时
-  pollTimer = window.setInterval(loadList, 10000)
+  // 兜底轮询：实时刷新主要靠 WS 提醒，这里仅低频(30s)兜底，避免漏单又不增加明显负载
+  pollTimer = window.setInterval(loadList, 30000)
   // 切回页面/标签时立即刷新一次
   onVisible = () => { if (!document.hidden) loadList() }
   document.addEventListener('visibilitychange', onVisible)
@@ -61,7 +63,6 @@ async function refreshStatus() {
   try {
     const st = await api.getStatus()
     online.value = st.onlineStatus === 1
-    load.value = st.currentLoad || 0
   } catch {
     /* ignore */
   }
@@ -80,7 +81,6 @@ async function toggleOnline(val: boolean) {
   try {
     const st = val ? await api.goOnline() : await api.goOffline()
     online.value = st.onlineStatus === 1
-    load.value = st.currentLoad || 0
     showSuccessToast(online.value ? '已上线接单' : '已下线')
     if (online.value) loadList()
   } catch {
@@ -154,7 +154,7 @@ async function onLogout() {
     </van-nav-bar>
 
     <van-cell-group inset class="status">
-      <van-cell title="接单状态" :label="`当前处理中：${load} 单`">
+      <van-cell title="接单状态" :label="`处理中 ${processingCount} · 待接入 ${pendingCount}`">
         <template #value>
           <van-switch v-model="online" size="22px" @change="toggleOnline" />
           <span class="state">{{ online ? '在线' : '离线' }}</span>
@@ -162,7 +162,7 @@ async function onLogout() {
       </van-cell>
     </van-cell-group>
 
-    <van-pull-refresh v-model="loading" @refresh="loadList">
+    <van-pull-refresh v-model="loading" @refresh="loadList" class="list-wrap">
       <div class="list">
         <van-empty v-if="!tickets.length" description="暂无待处理的工单" />
         <van-cell v-for="t in tickets" :key="t.id" center @click="openChat(t)">
@@ -190,11 +190,13 @@ async function onLogout() {
 </template>
 
 <style scoped>
-.page { min-height: 100%; }
+.page { min-height: 100%; background: #f7f8fa; }
 .logout { color: #6d6d6d; }
 .status { margin-top: 10px; }
 .state { margin-left: 8px; color: #646566; font-size: 13px; vertical-align: middle; }
-.list { padding-bottom: 20px; }
+/* 与上方「接单状态」卡片拉开间距 */
+.list-wrap { margin-top: 12px; }
+.list { padding-bottom: 20px; background: #fff; }
 .avatar { margin-right: 12px; }
 .ph { width: 42px; height: 42px; border-radius: 50%; background: #c8c9cc; color: #fff; display: flex; align-items: center; justify-content: center; }
 .name { font-weight: 600; }
