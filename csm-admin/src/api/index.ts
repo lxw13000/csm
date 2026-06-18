@@ -69,6 +69,9 @@ export const qaDelete = (id: number) => del<void>(`/admin/qa/${id}`)
 /* ===================== 统计 ===================== */
 export const statsTicket = (params: Record<string, unknown>) => get<TicketStatsVO>('/admin/stats/ticket', params)
 export const statsAgent = (params: Record<string, unknown>) => get<AgentStatVO[]>('/admin/stats/agent', params)
+/** 手动触发客服工作日汇总（定时任务的聚合内容），返回已聚合天数。 */
+export const statsAgentAggregate = (params: Record<string, unknown>) =>
+  post<number>('/admin/stats/agent/aggregate', null, params)
 
 /* ===================== 审计日志 ===================== */
 export const logPage = (params: Record<string, unknown>) => get<PageResult<OperationLog>>('/admin/log/page', params)

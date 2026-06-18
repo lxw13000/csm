@@ -66,6 +66,29 @@ public class AgentWorkDailyJob {
         log.info("客服工作日汇总完成 date={} agents={}", date, agents.size());
     }
 
+    /**
+     * 手动聚合「当前租户」指定日期范围（含端点）的客服工作日汇总，供管理端「手动统计」触发。
+     * 复用定时任务逻辑；依赖调用方已绑定租户上下文（管理端登录态），仅统计本租户客服。
+     * @param start 起始日期（含）
+     * @param end 截止日期（含）
+     * @return 聚合的天数
+     */
+    public int aggregateCurrentTenant(LocalDate start, LocalDate end) {
+        List<Account> agents = accountMapper.selectList(
+                new LambdaQueryWrapper<Account>().eq(Account::getAccountType, AccountType.AGENT.getCode()));
+        int days = 0;
+        for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
+            LocalDateTime dayStart = date.atStartOfDay();
+            LocalDateTime dayEnd = date.plusDays(1).atStartOfDay();
+            for (Account agent : agents) {
+                aggregateOne(agent.getAppId(), agent.getId(), date, dayStart, dayEnd);
+            }
+            days++;
+        }
+        log.info("手动客服工作日汇总完成 range={}~{} agents={}", start, end, agents.size());
+        return days;
+    }
+
     /** 聚合单个客服某日的接待量/回复数/平均响应/强制关闭数（全为 0 则不落库）。 */
     private void aggregateOne(String appId, Long agentId, LocalDate date,
                               LocalDateTime dayStart, LocalDateTime dayEnd) {

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import * as api from '@/api'
 import type { AccountVO, AgentStatVO } from '@/types/api'
 
@@ -8,6 +9,7 @@ const agentId = ref<number>()
 const agentOptions = ref<AccountVO[]>([])
 const rows = ref<AgentStatVO[]>([])
 const loading = ref(false)
+const aggregating = ref(false)
 
 onMounted(async () => {
   try {
@@ -32,6 +34,31 @@ async function load() {
     loading.value = false
   }
 }
+
+/** 手动统计：触发定时任务的聚合内容（默认统计当天，或所选日期范围），完成后刷新列表。 */
+async function aggregate() {
+  const tip = range.value ? `日期范围 ${range.value[0]} ~ ${range.value[1]}` : '当天'
+  try {
+    await ElMessageBox.confirm(`将重新统计${tip}的客服工作数据，确认执行？`, '手动统计')
+  } catch {
+    return // 取消
+  }
+  aggregating.value = true
+  try {
+    const params: Record<string, unknown> = {}
+    if (range.value) {
+      params.startDate = range.value[0]
+      params.endDate = range.value[1]
+    }
+    const days = await api.statsAgentAggregate(params)
+    ElMessage.success(`统计完成，已聚合 ${days} 天`)
+    await load()
+  } catch {
+    /* 错误已由响应拦截器提示 */
+  } finally {
+    aggregating.value = false
+  }
+}
 </script>
 
 <template>
@@ -48,6 +75,7 @@ async function load() {
       </el-form-item>
       <el-form-item>
         <el-button type="primary" @click="load">查询</el-button>
+        <el-button type="success" :loading="aggregating" @click="aggregate">手动统计</el-button>
       </el-form-item>
     </el-form>
 
