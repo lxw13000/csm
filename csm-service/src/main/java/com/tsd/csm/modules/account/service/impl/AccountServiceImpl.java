@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.tsd.csm.core.common.enums.AccountType;
+import com.tsd.csm.core.common.enums.OnlineStatus;
 import com.tsd.csm.core.common.exception.BizException;
 import com.tsd.csm.core.common.result.PageResult;
 import com.tsd.csm.core.common.result.ResultCode;
@@ -17,6 +18,8 @@ import com.tsd.csm.modules.account.domain.vo.AccountVO;
 import com.tsd.csm.modules.account.mapper.AccountMapper;
 import com.tsd.csm.modules.account.mapper.AccountRoleMapper;
 import com.tsd.csm.modules.account.service.AccountService;
+import com.tsd.csm.modules.agent.domain.AgentStatus;
+import com.tsd.csm.modules.agent.mapper.AgentStatusMapper;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,10 +34,13 @@ import java.util.List;
 public class AccountServiceImpl extends ServiceImpl<AccountMapper, Account> implements AccountService {
 
     private final AccountRoleMapper accountRoleMapper;
+    private final AgentStatusMapper agentStatusMapper;
     private final PasswordEncoder passwordEncoder;
 
-    public AccountServiceImpl(AccountRoleMapper accountRoleMapper, PasswordEncoder passwordEncoder) {
+    public AccountServiceImpl(AccountRoleMapper accountRoleMapper, AgentStatusMapper agentStatusMapper,
+                              PasswordEncoder passwordEncoder) {
         this.accountRoleMapper = accountRoleMapper;
+        this.agentStatusMapper = agentStatusMapper;
         this.passwordEncoder = passwordEncoder;
     }
 
@@ -119,6 +125,22 @@ public class AccountServiceImpl extends ServiceImpl<AccountMapper, Account> impl
         return lambdaQuery()
                 .eq(Account::getAccountType, AccountType.AGENT.getCode())
                 .eq(Account::getStatus, 1)
+                .list().stream().map(this::toVO).toList();
+    }
+
+    @Override
+    public List<AccountVO> listOnlineAgents() {
+        // 在线客服账号 id（本租户，online_status=1）
+        List<Long> onlineIds = agentStatusMapper.selectList(new LambdaQueryWrapper<AgentStatus>()
+                        .eq(AgentStatus::getOnlineStatus, OnlineStatus.ONLINE.getCode()))
+                .stream().map(AgentStatus::getAccountId).toList();
+        if (onlineIds.isEmpty()) {
+            return List.of();
+        }
+        return lambdaQuery()
+                .eq(Account::getAccountType, AccountType.AGENT.getCode())
+                .eq(Account::getStatus, 1)
+                .in(Account::getId, onlineIds)
                 .list().stream().map(this::toVO).toList();
     }
 

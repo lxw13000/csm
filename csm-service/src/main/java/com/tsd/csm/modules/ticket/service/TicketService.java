@@ -199,12 +199,15 @@ public class TicketService extends ServiceImpl<TicketMapper, Ticket> {
         return activeOrThrow(userId);
     }
 
-    /** 工单转接给其他客服。 */
+    /** 工单转接给其他客服（目标必须在线）。 */
     @Transactional(rollbackFor = Exception.class)
     public Ticket transfer(Long ticketId, Long toAgentId, String reason) {
         Ticket ticket = getOwned(ticketId);
         if (ticket.getStatus() == TicketStatus.CLOSED.getCode()) {
             throw new BizException("工单已完结，无法转接");
+        }
+        if (!dispatchService.isOnline(toAgentId)) {
+            throw new BizException("目标客服不在线，无法转接");
         }
         Long fromAgentId = ticket.getAgentId();
 

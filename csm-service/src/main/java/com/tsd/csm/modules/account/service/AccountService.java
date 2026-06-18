@@ -53,8 +53,11 @@ public interface AccountService extends IService<Account> {
      */
     PageResult<AccountVO> pageAccounts(AccountQuery query);
 
-    /** 本租户客服账号列表（account_type=3），用于转接选择等。 */
+    /** 本租户客服账号列表（account_type=3）。 */
     List<AccountVO> listAgents();
+
+    /** 本租户「在线」客服账号列表（online_status=1），用于转接目标选择。 */
+    List<AccountVO> listOnlineAgents();
 
     /**
      * 账号实体转展示 VO（含角色 id，不含密码哈希）。

@@ -69,12 +69,12 @@ public class AgentTicketController {
     }
 
     /**
-     * 可转接的本租户客服列表（转接选择用）。
-     * @return 客服账号列表
+     * 可转接的本租户**在线**客服列表（转接目标必须在线）。
+     * @return 在线客服账号列表
      */
     @GetMapping("/transfer-targets")
     public R<List<AccountVO>> transferTargets() {
-        return R.ok(accountService.listAgents());
+        return R.ok(accountService.listOnlineAgents());
     }
 
     /**

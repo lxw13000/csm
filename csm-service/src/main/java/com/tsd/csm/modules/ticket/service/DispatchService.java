@@ -87,6 +87,14 @@ public class DispatchService {
                 .setSql("current_load = current_load - 1"));
     }
 
+    /** 该客服是否在线（本租户）。 */
+    public boolean isOnline(Long agentId) {
+        AgentStatus status = agentStatusMapper.selectOne(new LambdaQueryWrapper<AgentStatus>()
+                .eq(AgentStatus::getAccountId, agentId));
+        return status != null && status.getOnlineStatus() != null
+                && status.getOnlineStatus() == OnlineStatus.ONLINE.getCode();
+    }
+
     private boolean doDispatch(String appId, Long ticketId) {
         Ticket ticket = ticketMapper.selectById(ticketId);
         if (ticket == null || ticket.getStatus() == null
