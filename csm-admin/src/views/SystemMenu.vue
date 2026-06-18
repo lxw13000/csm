@@ -50,6 +50,15 @@ function openCreate() {
   dialogVisible.value = true
 }
 
+/** 新增子集：父级预置为当前行（目录下默认建菜单，菜单下默认建按钮）。 */
+function openCreateChild(row: MenuVO) {
+  editId.value = null
+  Object.assign(form, emptyForm())
+  form.parentId = row.id
+  form.type = row.type === 1 ? 2 : 3
+  dialogVisible.value = true
+}
+
 function openEdit(row: MenuVO) {
   editId.value = row.id
   Object.assign(form, { parentId: row.parentId, name: row.name, type: row.type, permCode: row.permCode, path: row.path, sort: row.sort })
@@ -92,8 +101,9 @@ async function remove(row: MenuVO) {
       <el-table-column prop="permCode" label="权限点" width="180" />
       <el-table-column prop="path" label="路由" width="180" />
       <el-table-column prop="sort" label="排序" width="80" />
-      <el-table-column label="操作" width="140">
+      <el-table-column label="操作" width="200">
         <template #default="{ row }">
+          <el-button v-if="row.type !== 3" link type="success" @click="openCreateChild(row)">新增子集</el-button>
           <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
           <el-button link type="danger" @click="remove(row)">删除</el-button>
         </template>

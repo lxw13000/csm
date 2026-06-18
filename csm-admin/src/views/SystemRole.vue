@@ -66,15 +66,29 @@ async function remove(row: Role) {
 
 async function openGrant(row: Role) {
   grantingRoleId.value = row.id
+  const [menus, savedIds] = await Promise.all([api.menuTree(), api.roleMenus(row.id)])
+  menuTree.value = menus
+  // 只回显叶子节点的勾选；父级（目录/含子项的菜单）由 el-tree 依据子节点自动推导半选/全选。
+  // 否则把已保存的父级 id 直接放入勾选会级联勾上其全部子节点，导致刚取消的子项被重新勾上。
+  const leafIds = new Set<number>()
+  collectLeafIds(menus, leafIds)
+  checkedKeys.value = savedIds.filter((id) => leafIds.has(id))
   menuDialog.value = true
-  menuTree.value = await api.menuTree()
-  checkedKeys.value = await api.roleMenus(row.id)
+}
+
+/** 收集所有叶子节点（无子节点）的 id。 */
+function collectLeafIds(nodes: MenuVO[], out: Set<number>) {
+  for (const n of nodes) {
+    if (n.children?.length) collectLeafIds(n.children, out)
+    else out.add(n.id)
+  }
 }
 
 async function saveGrant() {
   if (!grantingRoleId.value || !treeRef.value) return
   const checked = treeRef.value.getCheckedKeys(false) as number[]
   const half = treeRef.value.getHalfCheckedKeys() as number[]
+  // 保存全选 + 半选（父级目录），后端据此渲染用户可见菜单树
   await api.roleSetMenus(grantingRoleId.value, [...checked, ...half])
   ElMessage.success('授权成功')
   menuDialog.value = false
@@ -114,7 +128,7 @@ async function saveGrant() {
       </template>
     </el-dialog>
 
-    <el-dialog v-model="menuDialog" title="分配菜单权限" width="420px">
+    <el-dialog v-model="menuDialog" title="分配菜单权限" width="420px" destroy-on-close>
       <el-tree ref="treeRef" :data="menuTree" show-checkbox node-key="id"
         :default-checked-keys="checkedKeys" :props="{ label: 'name', children: 'children' }" default-expand-all />
       <template #footer>
