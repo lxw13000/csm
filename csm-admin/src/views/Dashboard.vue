@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import * as api from '@/api'
+import { todayRange } from '@/utils/date'
 import type { AgentStatVO, TicketStatsVO } from '@/types/api'
 
-const range = ref<[string, string] | null>(null)
+// 默认统计当天
+const range = ref<[string, string] | null>(todayRange())
 const stats = ref<TicketStatsVO>()
 const agents = ref<AgentStatVO[]>([])
 const loading = ref(false)
@@ -29,7 +31,7 @@ async function load() {
 }
 
 function reset() {
-  range.value = null
+  range.value = todayRange()
   load()
 }
 
@@ -52,7 +54,7 @@ function fmtMinutes(seconds?: number): string {
           <el-button @click="reset">重置</el-button>
         </el-form-item>
       </el-form>
-      <span class="scope">统计范围：当前租户（不选日期则为全部时间）</span>
+      <span class="scope">统计范围：当前租户（默认当天，可调整日期范围；清空则为全部时间）</span>
     </el-card>
 
     <el-row :gutter="16" class="mt">

@@ -2,9 +2,11 @@
 import { onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import * as api from '@/api'
+import { weekRange } from '@/utils/date'
 import type { AccountVO, AgentStatVO } from '@/types/api'
 
-const range = ref<[string, string] | null>(null)
+// 默认统计本周
+const range = ref<[string, string] | null>(weekRange())
 const agentId = ref<number>()
 const agentOptions = ref<AccountVO[]>([])
 const rows = ref<AgentStatVO[]>([])
